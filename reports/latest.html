@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 热点分析 - 知几察微</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+    background: #f8fafc;
+    color: #1f2937;
+    line-height: 1.6;
+    padding: 20px;
+}
+.container { max-width: 1100px; margin: 0 auto; }
+.header {
+    background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+    color: white;
+    padding: 24px 28px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+}
+.header h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+.header .meta { font-size: 13px; opacity: 0.9; }
+.header .badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 4px; font-size: 12px; margin-left: 8px; }
+.stats { background: #eff6ff; color: #1e40af; padding: 12px 20px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; }
+.section {
+    background: white;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.section h2 {
+    background: linear-gradient(90deg, #eff6ff 0%, #ffffff 100%);
+    padding: 14px 20px;
+    font-size: 16px;
+    color: #1e40af;
+    border-left: 4px solid #2563eb;
+    font-weight: 600;
+}
+.section .content { padding: 18px 22px; color: #374151; }
+.section .content p { margin-bottom: 8px; }
+.section .content p:last-child { margin-bottom: 0; }
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.stat-card { background: white; padding: 18px; border-radius: 10px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.stat-label { color: #6b7280; font-size: 13px; margin-bottom: 6px; }
+.stat-value { font-size: 28px; font-weight: 700; }
+.stat-bull .stat-value { color: #10b981; }
+.stat-neutral .stat-value { color: #6b7280; }
+.stat-cautious .stat-value { color: #ef4444; }
+.stat-env .stat-value { font-size: 22px; color: #2563eb; }
+.stat-sub { color: #6b7280; font-size: 12px; margin-top: 4px; }
+.rankings { padding: 0 22px 22px; overflow-x: auto; }
+.rankings table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.rankings th { background: #f1f5f9; padding: 10px; text-align: left; color: #475569; font-weight: 600; }
+.rankings td { padding: 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.rankings .track-name { font-weight: 600; color: #1f2937; }
+.rankings .core-logic { color: #6b7280; font-size: 13px; max-width: 280px; }
+.phase-tag { color: white; padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.catalyst-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 18px 22px; }
+.catalyst-col h3 { font-size: 14px; color: #475569; margin-bottom: 10px; }
+.catalyst-col ul { list-style: none; padding: 0; }
+.catalyst-col li { padding: 6px 10px; margin-bottom: 4px; background: #f8fafc; border-radius: 4px; font-size: 13px; }
+.catalyst-col li.empty { color: #9ca3af; text-align: center; }
+.disagreement-list { padding: 18px 22px; }
+.disagreement-item { padding: 14px; margin-bottom: 10px; background: #f8fafc; border-radius: 8px; border-left: 3px solid #f59e0b; }
+.disagreement-topic { font-weight: 600; color: #1f2937; margin-bottom: 8px; font-size: 15px; }
+.disagreement-content > div { margin-bottom: 4px; font-size: 13px; color: #374151; }
+.disagreement-content .core { color: #b45309; }
+footer { text-align: center; color: #94a3b8; font-size: 12px; margin-top: 30px; padding: 16px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🤖 AI 热点分析报告<span class="badge">批次聚合 v4</span></h1>
+    <div class="meta">生成时间: 2026-08-29 01:19:56</div>
+  </div>
+  <div class="stats">📊 国内: 158条 | 海外: 265条 | 纪要: 581条 | 总计: 1004条</div>
+  
+  
+
+
+
+  <div class="section">
+  <h2>🏆 赛道热度排行榜 (TOP 8)</h2>
+  <div class="rankings">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>赛道/逻辑</th><th>频次</th><th>环比</th>
+          <th>机构乐观占比</th><th>催化类型</th><th>分歧程度</th>
+          <th>趋势定性</th><th>核心叙事</th>
+        </tr>
+      </thead>
+      <tbody><tr>
+                <td>1</td>
+                <td class="track-name">地缘政治/军工</td>
+                <td><b>12</b></td>
+                <td>+3</td>
+                <td>35%</td>
+                <td>前瞻为主</td>
+                <td>高</td>
+                <td><span class="phase-tag" style="background:#ef4444">分歧拐点</span></td>
+                <td class="core-logic">俄乌冲突升级+中东动荡+南美局势，军工订单预期与冲突风险并存，地缘溢价交易进入分歧阶段</td>
+            </tr><tr>
+                <td>2</td>
+                <td class="track-name">美联储/货币政策</td>
+                <td><b>9</b></td>
+                <td>+2</td>
+                <td>40%</td>
+                <td>前瞻为主</td>
+                <td>高</td>
+                <td><span class="phase-tag" style="background:#ef4444">分歧拐点</span></td>
+                <td class="core-logic">沃什鹰派信号强化通胀担忧，杰克逊霍尔会议预期升温，加息vs降息路径分歧加大</td>
+            </tr><tr>
+                <td>3</td>
+                <td class="track-name">能源/石油</td>
+                <td><b>9</b></td>
+                <td>+5</td>
+                <td>55%</td>
+                <td>前瞻+验证并存</td>
+                <td>中等</td>
+                <td><span class="phase-tag" style="background:#3b82f6">发酵初期</span></td>
+                <td class="core-logic">委内瑞拉石油协议落地带来供应增量预期，锂价回升验证新能源上游景气，新催化驱动</td>
+            </tr><tr>
+                <td>4</td>
+                <td class="track-name">消费/白酒</td>
+                <td><b>6</b></td>
+                <td>-1</td>
+                <td>25%</td>
+                <td>验证型为主</td>
+                <td>中等</td>
+                <td><span class="phase-tag" style="background:#6b7280">下行期</span></td>
+                <td class="core-logic">飞天茅台价格跌破万元、家纺利润承压，需求走弱共识强化，少数看好品牌韧性</td>
+            </tr><tr>
+                <td>5</td>
+                <td class="track-name">AI算力/半导体</td>
+                <td><b>5</b></td>
+                <td>+1</td>
+                <td>60%</td>
+                <td>验证型为主</td>
+                <td>低</td>
+                <td><span class="phase-tag" style="background:#f59e0b">景气兑现后期</span></td>
+                <td class="core-logic">海外业务成增长引擎、光纤光缆业绩暴增、长鑫广立微中报验证，故事进入兑现阶段</td>
+            </tr><tr>
+                <td>6</td>
+                <td class="track-name">金融/券商</td>
+                <td><b>7</b></td>
+                <td>0</td>
+                <td>45%</td>
+                <td>验证型为主</td>
+                <td>低</td>
+                <td><span class="phase-tag" style="background:#10b981">主升中段</span></td>
+                <td class="core-logic">券商持股A股市值65亿、QDII额度大增37亿、外资唱多4万亿，资金面信号积极</td>
+            </tr><tr>
+                <td>7</td>
+                <td class="track-name">宏观政策/财政</td>
+                <td><b>4</b></td>
+                <td>+1</td>
+                <td>50%</td>
+                <td>前瞻为主</td>
+                <td>低</td>
+                <td><span class="phase-tag" style="background:#10b981">主升中段</span></td>
+                <td class="core-logic">财政部信心表态+投资推进会议+服务贸易利好，政策组合拳预期支撑</td>
+            </tr><tr>
+                <td>8</td>
+                <td class="track-name">房地产</td>
+                <td><b>3</b></td>
+                <td>+2</td>
+                <td>40%</td>
+                <td>前瞻为主</td>
+                <td>中等</td>
+                <td><span class="phase-tag" style="background:#3b82f6">发酵初期</span></td>
+                <td class="core-logic">房贷最长40年、现房销售讨论，政策放松但效果待验证，存量房时代逻辑重构</td>
+            </tr></tbody>
+    </table>
+  </div>
+</div>
+  
+  
+  <footer>知算子 · jeeseek.top · AI 热点分析</footer>
+</div>
+</body>
+</html>

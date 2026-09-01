@@ -1,0 +1,254 @@
+{
+  "success": true,
+  "data": {
+    "ai_status": {
+      "code": "complete",
+      "msg": "完成"
+    },
+    "summary_tagged": {
+      "market_line": "市场交易沃什鹰派信号与委内瑞拉石油协议叠加，半导体/AI算力利好钝化，消费与地产政策托底预期分化",
+      "expectation_change": "美联储鹰派立场强化（通胀未改善），油价供应预期增加；AI算力与半导体海外营收高增但价格已下跌，预期差扩大",
+      "tomorrow_verify": "验证半导体/AI算力是否继续缩量下跌；观察油价对委内瑞拉协议的反应；关注国内地产政策落地情况"
+    },
+    "cards": {
+      "main_line": {
+        "title": "沃什鹰派+地缘石油协议",
+        "direction": "偏空",
+        "time_horizon": "1-3日",
+        "event_status": "已确认",
+        "signal_level": "A",
+        "info_quality": "高",
+        "expectation_gap": "强",
+        "price_confirmation": "背离",
+        "crowding": "中",
+        "topic_stage": "扩散期",
+        "supporting_evidence": [
+          "沃什承认通胀潜在趋势尚未显著改善，释出鹰派加息信号",
+          "特朗普称美国已达成历史性协议控制委内瑞拉650亿桶石油",
+          "委内瑞拉政府确认与美国达成石油协议"
+        ],
+        "counter_evidence": [
+          "海外利率ETF仅跌0.26%，价格反应弱，市场未充分定价鹰派预期",
+          "A股QDII额度增加37.2亿美元，外资仍在配置中国资产"
+        ],
+        "triggers": [
+          "若美债收益率突破4.8%则利率敏感资产继续承压",
+          "若布伦特原油跌破85美元则能源板块利空兑现"
+        ],
+        "invalidation": [
+          "若沃什后续发言转向鸽派则鹰派预期失效",
+          "若委内瑞拉协议执行受阻或延迟则油价供应预期回落"
+        ],
+        "earnings_relevance": "中",
+        "valuation_relevance": "高",
+        "ai_judgment": "若美债收益率继续上行且油价下跌，则利率敏感型成长股（半导体/AI算力）估值承压；若沃什转向鸽派则信号失效",
+        "expires_at": "2026-08-30 01:17:00"
+      },
+      "expectation_up": {
+        "title": "深圳房贷政策宽松+地产现房销售",
+        "direction": "偏多",
+        "signal_level": "B",
+        "supporting_evidence": [
+          "深圳房贷最长可贷40年，800万房子月供直降4313元",
+          "专家称现房销售契合存量房时代运行逻辑，预售现售并存",
+          "水利部贯彻落实中央政治局会议精神，基建托底预期"
+        ],
+        "counter_evidence": [
+          "消费ETF仅涨0.9%，地产链反应温和，市场观望情绪浓",
+          "茅台价格下跌反映消费疲软，地产政策对消费拉动有限"
+        ],
+        "current_judgment": "政策托底预期明确，但业绩兑现需观察销售数据",
+        "triggers": [
+          "若深圳二手房成交量环比增20%则政策效果验证",
+          "若头部房企销售数据改善则板块情绪修复"
+        ],
+        "invalidation": [
+          "若成交量持续低迷则政策效果证伪",
+          "若央行收紧信贷则预期逆转"
+        ],
+        "time_horizon": "1-3日",
+        "ai_judgment": "若深圳二手房成交量环比增20%以上，则地产链预期改善；若成交无变化则政策效果有限"
+      },
+      "expectation_down": {
+        "title": "半导体/AI算力利好钝化",
+        "direction": "偏空",
+        "signal_level": "A",
+        "supporting_evidence": [
+          "AI算力ETF跌2.41%缩量，半导体ETF跌2.29%缩量，利好未兑现",
+          "阳光电源中报超预期但价格未反应",
+          "长鑫科技订单+20%但板块持续下跌"
+        ],
+        "counter_evidence": [
+          "海外营收跨越千亿元门槛，业绩基本面扎实",
+          "牛散章建平、葛卫东加仓半导体相关标的"
+        ],
+        "current_judgment": "业绩向好但价格背离，预期差需时间修复",
+        "triggers": [
+          "观察成交量是否放大，若放量反弹则信号减弱"
+        ],
+        "invalidation": [
+          "若成交量放大且价格反弹3%以上则利好钝化失效"
+        ],
+        "time_horizon": "1-3日",
+        "ai_judgment": "若成交量持续缩量且价格继续下跌，则利好钝化延续；若放量反弹则预期修复"
+      },
+      "price_divergence": {
+        "title": "AI算力/半导体-业绩利好但价格下跌",
+        "divergence_type": "利好钝化",
+        "news_direction": "正面",
+        "price_reaction": "强",
+        "volume_signal": "缩量",
+        "sector_follow_through": "弱",
+        "supporting_evidence": [
+          "阳光电源26H1基本面超预期，长鑫科技订单+20%",
+          "AI算力ETF跌2.41%缩量，半导体ETF跌2.29%缩量"
+        ],
+        "counter_evidence": [
+          "海外业务成为业绩增长引擎，龙头企业海外营收破千亿"
+        ],
+        "ai_judgment": "若成交量放大且价格反弹，则利好钝化结束；若继续缩量下跌则预期差延续",
+        "triggers": [
+          "观察成交量是否放大",
+          "观察价格是否反弹3%以上"
+        ],
+        "invalidation": [
+          "若放量反弹则信号失效"
+        ],
+        "ai_status": "complete",
+        "ai_status_msg": "已纳入对比",
+        "auto_detected": [
+          {
+            "divergence_type": "利好钝化",
+            "news_direction": "正面",
+            "price_reaction": "弱",
+            "volume_signal": "持平",
+            "recent_pct_chg": -0.26,
+            "ai_status": "complete",
+            "ai_status_msg": "已纳入对比",
+            "topic": "海外利率",
+            "etf_code": "510300"
+          },
+          {
+            "divergence_type": "利好钝化",
+            "news_direction": "正面",
+            "price_reaction": "强",
+            "volume_signal": "持平",
+            "recent_pct_chg": -2.29,
+            "ai_status": "complete",
+            "ai_status_msg": "已纳入对比",
+            "topic": "半导体",
+            "etf_code": "159995"
+          },
+          {
+            "divergence_type": "利好钝化",
+            "news_direction": "正面",
+            "price_reaction": "强",
+            "volume_signal": "持平",
+            "recent_pct_chg": -2.41,
+            "ai_status": "complete",
+            "ai_status_msg": "已纳入对比",
+            "topic": "AI算力",
+            "etf_code": "588200"
+          },
+          {
+            "divergence_type": "无背离",
+            "news_direction": "中性",
+            "price_reaction": "中",
+            "volume_signal": "持平",
+            "recent_pct_chg": 0.9,
+            "ai_status": "complete",
+            "ai_status_msg": "已纳入对比",
+            "topic": "消费",
+            "etf_code": "159928"
+          }
+        ]
+      }
+    },
+    "topic_radar": [
+      {
+        "topic": "沃什鹰派+石油协议",
+        "direction": "偏空",
+        "event_status": "已确认",
+        "info_quality": "高",
+        "expectation_gap": "强",
+        "price_confirmation": "背离",
+        "crowding": "中",
+        "earnings_relevance": "中",
+        "topic_stage": "扩散期",
+        "comment": "鹰派预期强化但价格反应弱，需观察美债收益率走势",
+        "expires_at": "2026-08-30 01:17:00"
+      },
+      {
+        "topic": "半导体/AI算力利好钝化",
+        "direction": "偏空",
+        "event_status": "待确认",
+        "info_quality": "高",
+        "expectation_gap": "强",
+        "price_confirmation": "背离",
+        "crowding": "低",
+        "earnings_relevance": "高",
+        "topic_stage": "分化期",
+        "comment": "业绩向好但价格持续下跌，预期差需成交量验证",
+        "expires_at": "2026-08-30 01:17:00"
+      },
+      {
+        "topic": "深圳房贷政策宽松",
+        "direction": "偏多",
+        "event_status": "刚出现",
+        "info_quality": "中",
+        "expectation_gap": "中",
+        "price_confirmation": "待验证",
+        "crowding": "低",
+        "earnings_relevance": "中",
+        "topic_stage": "启动期",
+        "comment": "政策托底明确，但需观察成交量验证效果",
+        "expires_at": "2026-08-30 01:17:00"
+      },
+      {
+        "topic": "茅台价格下跌/消费疲软",
+        "direction": "偏空",
+        "event_status": "已确认",
+        "info_quality": "高",
+        "expectation_gap": "弱",
+        "price_confirmation": "强",
+        "crowding": "中",
+        "earnings_relevance": "高",
+        "topic_stage": "退潮期",
+        "comment": "白酒价格持续下跌反映消费疲软，板块情绪低迷",
+        "expires_at": "2026-08-30 01:17:00"
+      },
+      {
+        "topic": "地缘冲突升级（俄乌/中东）",
+        "direction": "震荡",
+        "event_status": "扩散中",
+        "info_quality": "中",
+        "expectation_gap": "中",
+        "price_confirmation": "弱",
+        "crowding": "低",
+        "earnings_relevance": "低",
+        "topic_stage": "扩散期",
+        "comment": "泽连斯基无人机目标升级，索马里海盗激增，地缘风险外溢",
+        "expires_at": "2026-08-30 01:17:00"
+      }
+    ]
+  },
+  "meta": {
+    "generated_at": 1787966304,
+    "time_str": "2026-08-29 01:18:24",
+    "data_stats": {
+      "domestic": 158,
+      "overseas": 265,
+      "minutes": 581
+    },
+    "price_context": {
+      "status": "complete",
+      "topics_with_data": [
+        "海外利率",
+        "半导体",
+        "AI算力",
+        "消费"
+      ],
+      "divergence_count": 3
+    }
+  }
+}

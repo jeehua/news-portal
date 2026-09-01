@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>知几察微 · jeeseek.top</title>
+<link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=20260827">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/logo.png?v=20260827">
+<style>
+/* === 知几察微 v3 — 完整版（照搬 trend 设计）=== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #f0f4f8;
+  color: #1f2937;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-size: 16px;
+}
+/* 顶部 */
+.header {
+  background: #ffffff;
+  padding: 10px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+.header h1 { font-size: 24px; font-weight: 700; color: #2563eb; letter-spacing: 0.5px; }
+.main-tabs { display: flex; gap: 4px; background: #eef2f7; padding: 4px; border-radius: 10px; }
+.feed-search {
+  border: 1px solid #d1d5db; border-radius: 8px; padding: 4px 10px; font-size: 13px;
+  outline: none; min-width: 160px; background: #fff; transition: border-color .2s;
+}
+.feed-search:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.15); }
+.inst-search-row { padding: 6px 12px; display: flex; align-items: center; gap: 8px; background: #f8fafc; border-bottom: 1px solid #e5e7eb; }
+.load-status { color: #64748b; font-size: 11px; }
+.load-status.loading { color: #3b82f6; }
+.load-status.end { color: #10b981; }
+.main-tab {
+  padding: 8px 20px; border: none; border-radius: 8px;
+  background: transparent; color: #64748b; font-size: 15px;
+  cursor: pointer; transition: all 0.2s;
+}
+.main-tab:hover { color: #1f2937; }
+.main-tab.active { background: #2563eb; color: #ffffff; font-weight: 600; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3); }
+.header .status { font-size: 13px; color: #94a3b8; }
+
+/* 聊天室按钮呼吸动画 */
+@keyframes chatPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.6); }
+  50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+}
+#chat-btn {
+  animation: chatPulse 2s ease-in-out infinite;
+}
+#chat-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239,68,68,0.4);
+}
+
+/* 聊天室弹窗 */
+.chat-modal-bg {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+  backdrop-filter: blur(4px);
+}
+.chat-modal-bg.active { display: flex; }
+.chat-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  text-align: center;
+}
+.chat-modal h3 {
+  font-size: 22px;
+  margin-bottom: 12px;
+  color: #1f2937;
+}
+.chat-modal p {
+  color: #64748b;
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+.chat-modal .btn-cta {
+  display: inline-block;
+  padding: 14px 32px;
+  background: linear-gradient(135deg,#ef4444 0%,#dc2626 100%);
+  color: #fff;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 16px;
+  box-shadow: 0 4px 12px rgba(239,68,68,0.3);
+  transition: all 0.2s;
+  animation: chatPulse 2s ease-in-out infinite;
+}
+.chat-modal .btn-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(239,68,68,0.4);
+}
+.chat-modal .btn-close {
+  display: block;
+  margin: 16px auto 0;
+  padding: 8px 20px;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 13px;
+}
+.chat-modal .btn-close:hover { background: #f3f4f6; }
+.pulse {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: #22c55e; animation: pulse 1.5s ease-in-out infinite; margin-right: 6px;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+@keyframes pulse { 0%,100% { opacity: 0.4; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
+
+/* 公告栏 */
+.announcement {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-left: 4px solid #f59e0b;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-shrink: 0;
+  font-size: 14px;
+  color: #78350f;
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.08);
+}
+.announcement-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.announcement-text {
+  flex: 0 1 auto;
+  line-height: 1.5;
+  text-align: center;
+}
+.announcement-text strong { color: #92400e; font-weight: 700; }
+
+/* 内容区 */
+.content { flex: 1; overflow: hidden; display: none; flex-direction: column; }
+.content.active { display: flex; }
+
+/* 双栏（国内+海外） */
+.feed-layout { display: flex; height: 55%; width: 100%; }
+.feed-column {
+  display: flex; flex-direction: column;
+  min-width: 0; overflow: hidden;
+}
+.feed-column.left { flex: 1; min-width: 200px; }
+.feed-column.right { flex: 1; min-width: 200px; }
+
+/* 拖动分隔条 */
+.resizer {
+  width: 6px; background: #e2e8f0;
+  border-left: 1px solid #eef2f7; border-right: 1px solid #eef2f7;
+  cursor: col-resize; flex-shrink: 0; transition: background 0.2s; z-index: 10;
+}
+.resizer:hover, .resizer.resizing { background: #2563eb; }
+
+/* 栏目头 */
+.feed-header {
+  padding: 10px 16px; background: #ffffff;
+  border-bottom: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;
+}
+.feed-header-top { display: flex; justify-content: space-between; align-items: center; }
+.feed-title { font-size: 18px; font-weight: 700; color: #111827; }
+.feed-count { font-size: 13px; color: #94a3b8; margin-left: 8px; }
+.feed-actions { display: flex; gap: 6px; }
+.btn {
+  padding: 6px 14px; border: none; border-radius: 6px;
+  font-size: 13px; cursor: pointer; transition: all 0.2s;
+}
+.btn-primary { background: #2563eb; color: #ffffff; }
+.btn-primary:hover { background: #1d4ed8; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3); }
+.btn-secondary { background: #eef2f7; color: #334155; }
+.btn-secondary:hover { background: #e2e8f0; }
+.btn:disabled { opacity: 0.6; cursor: wait; }
+
+/* 来源筛选按钮 */
+.source-filters { display: flex; gap: 4px; flex-wrap: wrap; }
+.source-filter-btn {
+  padding: 5px 12px; border: 1px solid #e2e8f0; border-radius: 6px;
+  background: #ffffff; color: #64748b; font-size: 12px;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.source-filter-btn:hover { background: #f0f4ff; color: #1d4ed8; border-color: #93c5fd; }
+.source-filter-btn.active { background: #2563eb; color: #ffffff; border-color: #2563eb; font-weight: 600; }
+
+/* 列表 */
+.feed-container { flex: 1; overflow-y: auto; padding: 8px; min-height: 0; }
+.feed-container::-webkit-scrollbar { width: 6px; }
+.feed-container::-webkit-scrollbar-track { background: #f0f4f8; }
+.feed-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.news-item {
+  padding: 10px 14px; border-radius: 8px; margin-bottom: 4px;
+  transition: all 0.15s; cursor: pointer; text-decoration: none;
+  display: block; color: inherit; border-left: 3px solid transparent;
+  background: #ffffff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.news-item.tier1 {
+  border-left-color: #dc2626;
+  background: #fef2f2;
+}
+.news-item.tier1:hover {
+  background: #fee2e2;
+  border-left-color: #b91c1c;
+}
+.tier1-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700;
+  background: #dc2626; color: #ffffff; margin-right: 6px;
+  letter-spacing: 0.3px;
+}
+.news-item:hover { background: #f0f4ff; border-left-color: #2563eb; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1); }
+.news-item.new { animation: flash 1s ease-out; }
+@keyframes flash { 0% { background: #dbeafe; } 100% { background: #ffffff; } }
+.news-title { font-size: 16px; line-height: 1.6; margin-bottom: 4px; word-break: break-all; color: #1f2937; }
+.news-meta { font-size: 13px; color: #94a3b8; display: flex; gap: 8px; align-items: center; }
+.source-tag { padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.source-domestic { background: #fee2e2; color: #dc2626; }
+.source-overseas { background: #dbeafe; color: #1d4ed8; }
+.rank-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  font-size: 13px; font-weight: 700; margin-right: 4px;
+}
+.rank-top3 { background: #2563eb; color: #ffffff; }
+.rank-normal { background: #eef2f7; color: #64748b; }
+.empty-state {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; height: 150px; color: #94a3b8; font-size: 16px;
+}
+
+/* 机构纪要 */
+.institutional-layout {
+  display: flex;
+  height: 45%;
+  width: 100%;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.institutional-list {
+  width: 25%;
+  min-width: 280px;
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+}
+.institutional-content {
+  flex: 1;
+  background: #ffffff;
+  overflow-y: auto;
+  padding: 20px;
+}
+.institutional-content::-webkit-scrollbar { width: 6px; }
+.institutional-content::-webkit-scrollbar-track { background: #f1f5f9; }
+.institutional-content::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.institutional-content h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e2e8f0;
+}
+.institutional-content .content-body {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #334155;
+}
+.institutional-content .content-body p {
+  margin-bottom: 12px;
+}
+.inst-item {
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 2px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-left: 3px solid transparent;
+}
+.inst-item:hover {
+  background: #f0f4ff;
+  border-left-color: #2563eb;
+}
+.inst-item.active {
+  background: #eff6ff;
+  border-left-color: #2563eb;
+}
+.inst-item-title {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1e293b;
+  word-break: break-all;
+}
+.inst-item-time {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+.inst-item-header {
+  padding: 10px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.inst-loading {
+  text-align: center;
+  padding: 20px;
+  color: #94a3b8;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <div style="display: flex; align-items: center; gap: 20px;">
+    <h1><img src="/static/logo.png" alt="知几察微" style="height: 40px; width: 40px; vertical-align: middle; margin-right: 8px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));">知几察微</h1>
+    <div class="main-tabs">
+      <button class="main-tab active" onclick="switchTab('feed')">📰 实时推送</button>
+                <button class="main-tab" onclick="switchTab('keywords')">🏷️ 关键词聚合</button>
+                <button class="main-tab" onclick="switchTab('report')">📊 AI完整报告</button>
+      <button class="main-tab" onclick="switchTab('radar')" id="radar-tab">🎯 AI研判</button>
+    </div>
+  </div>
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <span id="stats-info" style="font-size: 12px; color: #94a3b8; white-space: nowrap;"></span>
+    <button class="btn btn-secondary" id="chat-btn" style="background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%);color:#fff;font-weight:600;border:none;" onclick="openChat()">💬 加入聊天室</button>
+    <button class="btn btn-secondary" id="voice-btn">🔊 语音播报</button>
+    <div class="status"><span class="pulse"></span><span id="last-update">实时更新中...</span></div>
+  </div>
+</div>
+
+<!-- 公告栏 -->
+<div class="announcement">
+  <span class="announcement-icon">📌</span>
+  <div class="announcement-text">
+    <strong>声明！该网站开源，只用于做投研学习、消息跟踪，不构成投资建议！</strong>
+  </div>
+</div>
+
+<!-- 实时推送 -->
+<!-- AI 研判页 -->
+<div id="radar-page" style="display:none;padding:16px;max-width:1400px;margin:0 auto;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="font-size:18px;font-weight:600;color:#1f2937;">🎯 AI 研判</span>
+      <span id="radar-updated-at" style="font-size:12px;color:#64748b;"></span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="refreshRadar()" class="btn btn-secondary" style="padding:6px 14px;font-size:13px;">🔄 刷新</button>
+    </div>
+  </div>
+
+  <!-- 今日 3 句话摘要 -->
+  <div id="radar-ai-status-banner" style="display:none;background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 16px;border-radius:6px;margin-bottom:12px;color:#92400e;font-size:13px;"></div>
+
+  <div id="radar-summary" style="background:#f8fafc;border-left:4px solid #2563eb;padding:16px 20px;border-radius:8px;margin-bottom:16px;line-height:1.8;">
+    <div style="color:#64748b;font-size:13px;margin-bottom:8px;">📌 今日 3 句话</div>
+    <div id="radar-summary-text" style="color:#1f2937;font-size:14px;">加载中...</div>
+  </div>
+
+  <!-- 4 张状态卡 -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;">
+    <div id="card-main-line" class="radar-card">
+      <div class="radar-card-header">🎯 市场主线</div>
+      <div class="radar-card-title">—</div>
+      <div class="radar-card-tags"></div>
+      <div class="radar-card-evidence"></div>
+      <div class="radar-card-judgment"></div>
+    </div>
+    <div id="card-expectation-up" class="radar-card">
+      <div class="radar-card-header">📈 预期改善</div>
+      <div class="radar-card-title">—</div>
+      <div class="radar-card-evidence"></div>
+      <div class="radar-card-judgment"></div>
+    </div>
+    <div id="card-expectation-down" class="radar-card">
+      <div class="radar-card-header">📉 预期恶化</div>
+      <div class="radar-card-title">—</div>
+      <div class="radar-card-evidence"></div>
+      <div class="radar-card-judgment"></div>
+    </div>
+    <div id="card-price-divergence" class="radar-card">
+      <div class="radar-card-header">⚖️ 新闻-价格背离</div>
+      <div class="radar-card-title">—</div>
+      <div class="radar-card-evidence"></div>
+      <div class="radar-card-judgment"></div>
+    </div>
+  </div>
+
+  <!-- 主题雷达 -->
+  <div style="margin-top:24px;">
+    <div style="font-size:15px;font-weight:600;color:#1f2937;margin-bottom:12px;">📡 主题雷达</div>
+    <div id="radar-topic-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;"></div>
+  </div>
+</div>
+
+<!-- 实时推送 -->
+<div id="feed-page" class="content active">
+  <div class="feed-layout">
+    <!-- 国内 -->
+    <div class="feed-column left" id="left-column">
+      <div class="feed-header">
+        <div class="feed-header-top">
+          <div><span class="feed-title">🇨🇳 国内要闻</span><span class="feed-count" id="domestic-count"></span></div>
+          <div class="feed-actions">
+            <input type="search" id="domestic-search" class="feed-search" placeholder="🔍 搜索标题…" />
+            <button class="btn btn-secondary" onclick="refreshAll()">🔄 刷新</button>
+          </div>
+        </div>
+        <div class="source-filters" id="domestic-filters">
+          <button class="source-filter-btn active" data-source="all">全部</button>
+          <button class="source-filter-btn" data-source="cls-hot">财联社</button>
+          <button class="source-filter-btn" data-source="jin10">金十数据</button>
+          <button class="source-filter-btn" data-source="cls-telegraph">快讯</button>
+          <button class="source-filter-btn" data-source="gelonghui">格隆汇</button>
+          <button class="source-filter-btn" data-source="wallstreetcn">华尔街见闻</button>
+          <button class="source-filter-btn" data-source="sina-finance">新浪财经</button>
+          <button class="source-filter-btn" data-source="10jqka-news">同花顺</button>
+        </div>
+      </div>
+      <div class="feed-container" id="domestic-feed"><div class="empty-state">加载国内新闻...</div></div>
+    </div>
+
+    <div class="resizer" id="resizer"></div>
+
+    <!-- 海外 -->
+    <div class="feed-column right" id="right-column">
+      <div class="feed-header">
+        <div class="feed-header-top">
+          <div><span class="feed-title">🌍 海外资讯</span><span class="feed-count" id="overseas-count"></span></div>
+          <div class="feed-actions">
+            <input type="search" id="overseas-search" class="feed-search" placeholder="🔍 搜索标题…" />
+            <button class="btn btn-secondary" onclick="refreshAll()">🔄 刷新</button>
+          </div>
+        </div>
+        <div class="source-filters" id="overseas-filters">
+          <button class="source-filter-btn active" data-source="all">全部</button>
+          <button class="source-filter-btn" data-source="bbc-world">BBC全球</button>
+          <button class="source-filter-btn" data-source="bbc-business">BBC商业</button>
+          <button class="source-filter-btn" data-source="nyt-world">纽约时报</button>
+          <button class="source-filter-btn" data-source="wsj-us-business">华尔街日报</button>
+          <button class="source-filter-btn" data-source="yahoo-finance">雅虎财经</button>
+          <button class="source-filter-btn" data-source="ft-international">FT国际版</button>
+          <button class="source-filter-btn" data-source="ftchinese">FT中文网</button>
+          <button class="source-filter-btn" data-source="trendforce-news">TrendForce</button>
+          <button class="source-filter-btn" data-source="bloomberg-bbg">彭博社</button>
+          <button class="source-filter-btn" data-source="reuters-rtr">路透社</button>
+          <button class="source-filter-btn" data-source="zaobao-realtime">联合早报</button>
+        </div>
+      </div>
+      <div class="feed-container" id="overseas-feed"><div class="empty-state">加载海外资讯...</div></div>
+    </div>
+  </div>
+
+  <!-- 机构纪要 -->
+  <div class="institutional-layout">
+    <div class="institutional-list">
+      <div class="inst-item-header">
+        <span>📊 机构纪要</span>
+        <span id="institutional-count"></span>
+      </div>
+      <div class="inst-search-row">
+        <input type="search" id="minutes-search" class="feed-search" placeholder="🔍 搜索标题…" />
+        <span id="minutes-load-status" class="load-status">下拉加载更多 ↓</span>
+      </div>
+      <div id="institutional-items" style="flex: 1; overflow-y: auto;">
+        <div class="empty-state">加载机构纪要...</div>
+      </div>
+    </div>
+    <div class="institutional-content" id="institutional-content-area">
+      <div class="empty-state">点击左侧纪要查看内容</div>
+    </div>
+  </div>
+</div>
+
+<!-- AI报告页面 -->
+<div id="report-page" class="report-page" style="display:none;">
+  <iframe id="report-iframe" src="/api/ai/report" style="width:100%;height:calc(100vh - 120px);border:none;"></iframe>
+</div>
+
+<!-- 关键词聚合页面 -->
+<div id="keywords-page" class="report-page" style="display:none;">
+  <iframe id="keywords-iframe" src="/api/ai/keywords" style="width:100%;height:calc(100vh - 120px);border:none;"></iframe>
+</div>
+
+<script src="/static/app.js?v=202608281640"></script>
+
+<!-- 聊天室弹窗 -->
+<div class="chat-modal-bg" id="chat-modal" onclick="if(event.target===this)closeChat()">
+  <div class="chat-modal">
+    <div style="font-size:48px;margin-bottom:12px;">💬</div>
+    <h3>加入 jeeseek 聊天室</h3>
+    <p>实时交流投研心得、追踪题材热点<br>国内直连，无需魔法网络</p>
+    <a href="https://monkeycode-ai.online" target="_blank" rel="noopener" class="btn-cta">
+      🚀 立即进入聊天室
+    </a>
+    <button class="btn-close" onclick="closeChat()">稍后再说</button>
+  </div>
+</div>
+
+<script>
+function openChat() {
+  document.getElementById('chat-modal').classList.add('active');
+}
+function closeChat() {
+  document.getElementById('chat-modal').classList.remove('active');
+}
+// ESC 关闭
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeChat();
+});
+</script>
+
+</body>
+</html>

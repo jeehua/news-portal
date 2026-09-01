@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知几察微 v2 — 实时财经</title>
+<style>
+/* 知几察微 v2 — 内联 4 宫格（不走外部缓存）*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  background: #f7f8fc;
+  color: #1f2330;
+  overflow: hidden;
+}
+
+.topbar {
+  width: 100%;
+  height: 52px;
+  background: #fff;
+  border-bottom: 1px solid #e5e8ef;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 10;
+}
+.brand { display:flex; align-items:center; gap:6px; font-size:16px; font-weight:700; color:#4f6ef7; }
+.brand .logo { font-size: 20px; }
+.nav-btn { background: transparent; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; color: #5d6378; }
+.nav-btn:hover { background: #f0f2f8; }
+.nav-btn.active { background: #e9eefe; color: #4f6ef7; font-weight: 600; }
+.stats { margin-left: auto; color: #8d92a3; font-size: 12px; display: flex; gap: 8px; align-items: center; }
+
+.main {
+  position: fixed;
+  top: 52px; left: 0; right: 0; bottom: 0;
+  display: flex;
+  flex-direction: column;
+  background: #d8dde7;
+}
+.row {
+  flex: 1 1 50%;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  border-bottom: 1px solid #d8dde7;
+  overflow: hidden;
+}
+.row:last-child { border-bottom: none; }
+
+.cell {
+  flex: 1 1 50%;
+  min-height: 0;
+  min-width: 0;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid #d8dde7;
+}
+.cell:last-child { border-right: none; }
+
+.panel-header { display: flex; align-items: center; padding: 8px 14px; border-bottom: 1px solid #eef0f4; background: #fafbfc; gap: 8px; flex: 0 0 auto; }
+.panel-title { font-size: 14px; font-weight: 600; color: #3d4252; display: flex; align-items: center; gap: 6px; }
+.panel-count { background: #e9eefe; color: #4f6ef7; font-size: 11px; padding: 1px 6px; border-radius: 8px; }
+
+.filter-row { display: flex; flex-wrap: wrap; gap: 5px; padding: 7px 12px; border-bottom: 1px solid #f3f5f9; background: #fff; flex: 0 0 auto; max-height: 70px; overflow-y: auto; }
+.chip { background: #f1f3f8; border: 1px solid transparent; padding: 3px 9px; border-radius: 11px; font-size: 11px; cursor: pointer; color: #5d6378; white-space: nowrap; flex: 0 0 auto; }
+.chip:hover { background: #e6eaf3; }
+.chip.active { background: #4f6ef7; color: #fff; font-weight: 500; }
+
+.feed-list { flex: 1 1 auto; overflow-y: auto; min-height: 0; }
+
+.feed-item { padding: 8px 12px; border-bottom: 1px solid #f3f4f8; cursor: pointer; transition: background 0.1s; }
+.feed-item:hover { background: #f7f9ff; }
+.feed-item.selected { background: #e9eefe; border-left: 3px solid #4f6ef7; padding-left: 9px; }
+.feed-item .src { display: inline-block; background: #f1f3f8; color: #5d6378; font-size: 10px; padding: 1px 5px; border-radius: 3px; margin-right: 5px; font-weight: 500; }
+.feed-item .title { color: #1a1d26; font-size: 12.5px; line-height: 1.4; display: inline; }
+.feed-item .ts { display: block; color: #aab0c0; font-size: 11px; margin-top: 2px; }
+
+.detail-wrap { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+.detail-head { padding: 10px 14px; border-bottom: 1px solid #eef0f4; background: #fafbfc; flex: 0 0 auto; }
+.detail-head .src { display: inline-block; background: #4f6ef7; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-right: 8px; }
+.detail-head .title { font-size: 14px; font-weight: 700; line-height: 1.4; margin-top: 6px; color: #1a1d26; }
+.detail-head .meta { color: #8d92a3; font-size: 12px; margin-top: 4px; }
+.detail-head .meta a { color: #4f6ef7; text-decoration: none; margin-left: 6px; }
+.detail-body { flex: 1 1 auto; padding: 12px 14px; font-size: 13.5px; line-height: 1.7; color: #2c313f; white-space: pre-wrap; word-break: break-word; overflow-y: auto; }
+
+.loading, .empty { padding: 20px; text-align: center; color: #aab0c0; font-size: 13px; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-thumb { background: #d1d5e3; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #aab0c0; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="logo">🦊</span><span class="title">知几察微</span></div>
+  <nav>
+    <button class="nav-btn active">📡 实时推送</button>
+    <button class="nav-btn">📊 完整报告</button>
+    <button class="nav-btn">🔊 语音播报</button>
+  </nav>
+  <div class="stats">
+    <span>今日 PV/UV</span>
+    <span style="color:#c8ccd6">·</span>
+    <span id="update">最后更新 —</span>
+  </div>
+</header>
+
+<main class="main">
+  <!-- 上行：国内 + 海外 -->
+  <div class="row">
+    <div class="cell">
+      <div class="panel-header">
+        <span class="panel-title">🇨🇳 国内要闻 <span class="panel-count" id="cnt-domestic">0</span></span>
+      </div>
+      <div class="filter-row" id="filter-domestic">
+        <button class="chip active" data-source="__all__">全部</button>
+        <button class="chip" data-source="cls-hot">财联社</button>
+        <button class="chip" data-source="jin10">金十</button>
+        <button class="chip" data-source="gelonghui">格隆汇</button>
+        <button class="chip" data-source="wallstreetcn-hot">华尔街见闻</button>
+      </div>
+      <div class="feed-list" id="list-domestic"><div class="loading">加载中...</div></div>
+    </div>
+
+    <div class="cell">
+      <div class="panel-header">
+        <span class="panel-title">🌍 海外资讯 <span class="panel-count" id="cnt-overseas">0</span></span>
+      </div>
+      <div class="filter-row" id="filter-overseas">
+        <button class="chip active" data-source="__all__">全部</button>
+        <button class="chip" data-source="bloomberg-markets">Bloomberg</button>
+        <button class="chip" data-source="bbc-business">BBC</button>
+        <button class="chip" data-source="reuters-business">Reuters</button>
+        <button class="chip" data-source="yahoo-finance">Yahoo</button>
+        <button class="chip" data-source="ft-home">FT</button>
+        <button class="chip" data-source="wsj-markets">WSJ</button>
+        <button class="chip" data-source="nyt-top">NYT</button>
+        <button class="chip" data-source="trendforce-news">TrendForce</button>
+        <button class="chip" data-source="seouleconews">首尔</button>
+        <button class="chip" data-source="zaobao-realtime">联合早报</button>
+      </div>
+      <div class="feed-list" id="list-overseas"><div class="loading">加载中...</div></div>
+    </div>
+  </div>
+
+  <!-- 下行：纪要标题 + 详情 -->
+  <div class="row">
+    <div class="cell">
+      <div class="panel-header">
+        <span class="panel-title">📋 机构纪要 <span class="panel-count" id="cnt-minutes">0</span></span>
+      </div>
+      <div class="filter-row">
+        <button class="chip active" data-source="__all__">全部纪要</button>
+      </div>
+      <div class="feed-list" id="list-minutes"><div class="loading">加载中...</div></div>
+    </div>
+
+    <div class="cell">
+      <div class="detail-wrap">
+        <div class="detail-head" id="detail-head">
+          <div style="color:#aab0c0; font-size:13px;">左下选择机构纪要后显示详情</div>
+        </div>
+        <div class="detail-body" id="detail-body">
+          <div style="color:#aab0c0; font-size:13px;">← 请先选择左侧一条纪要</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="/static/app.js?v=1787755793"></script>
+</body>
+</html>

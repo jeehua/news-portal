@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>知几察微 · 管理后台</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+  background: #f1f5f9; color: #1f2937; padding: 20px;
+}
+.container { max-width: 1280px; margin: 0 auto; }
+header {
+  background: #fff; padding: 16px 24px; border-radius: 10px;
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+header h1 { font-size: 22px; color: #2563eb; }
+header .user { font-size: 13px; color: #64748b; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
+.card {
+  background: #fff; padding: 20px; border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06); border-left: 4px solid #2563eb;
+}
+.card .label { font-size: 13px; color: #64748b; margin-bottom: 6px; }
+.card .value { font-size: 28px; font-weight: 700; color: #1e40af; }
+.card.green { border-left-color: #22c55e; } .card.green .value { color: #15803d; }
+.card.amber { border-left-color: #f59e0b; } .card.amber .value { color: #b45309; }
+.card.purple { border-left-color: #a855f7; } .card.purple .value { color: #7e22ce; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+@media (max-width: 768px) { .grid2 { grid-template-columns: 1fr; } }
+.panel {
+  background: #fff; padding: 20px; border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.panel h2 { font-size: 16px; color: #1e40af; margin-bottom: 14px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+th { background: #f8fafc; font-weight: 600; color: #475569; }
+tr:hover td { background: #f8fafc; }
+.tag {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  background: #dbeafe; color: #1e40af; font-size: 12px;
+}
+
+.login-box {
+  max-width: 360px; margin: 100px auto; background: #fff;
+  padding: 32px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.login-box h1 { color: #2563eb; margin-bottom: 24px; font-size: 22px; }
+.login-box input {
+  width: 100%; padding: 10px 14px; border: 1px solid #cbd5e1;
+  border-radius: 6px; margin-bottom: 12px; font-size: 14px;
+}
+.login-box button {
+  width: 100%; padding: 10px; background: #2563eb; color: #fff;
+  border: none; border-radius: 6px; cursor: pointer; font-size: 15px;
+}
+.login-box button:hover { background: #1d4ed8; }
+.login-box .err { color: #dc2626; font-size: 13px; margin-top: 8px; }
+.login-box .hint { color: #94a3b8; font-size: 12px; margin-top: 12px; text-align: center; }
+
+.refresh-btn {
+  background: #2563eb; color: #fff; border: none; padding: 6px 14px;
+  border-radius: 6px; cursor: pointer; font-size: 13px;
+}
+.refresh-btn:hover { background: #1d4ed8; }
+.logout-btn {
+  background: transparent; color: #64748b; border: 1px solid #cbd5e1;
+  padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+}
+canvas { max-height: 240px; }
+.bar { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.bar .name { width: 140px; font-size: 13px; color: #475569; }
+.bar .fill { flex: 1; height: 16px; background: #e0e7ff; border-radius: 3px; position: relative; overflow: hidden; }
+.bar .fill > div { height: 100%; background: linear-gradient(90deg, #2563eb, #60a5fa); transition: width 0.3s; }
+.bar .cnt { font-size: 12px; color: #64748b; min-width: 40px; text-align: right; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const API_BASE = location.origin;
+const TOKEN_KEY = 'zhiji_admin_token';
+
+// === Login ===
+function renderLogin() {
+  document.getElementById('app').innerHTML = `
+    <div class="login-box">
+      <h1>🔐 知几察微 管理后台</h1>
+      <input id="user" placeholder="用户名" value="admin">
+      <input id="pwd" type="password" placeholder="密码">
+      <button onclick="doLogin()">登录</button>
+      <div class="err" id="err"></div>
+      <div class="hint">私网管理 · 仅限本人访问</div>
+    </div>`;
+}
+
+async function doLogin() {
+  const u = document.getElementById('user').value;
+  const p = document.getElementById('pwd').value;
+  try {
+    const r = await fetch(`${API_BASE}/api/admin/login?user=${encodeURIComponent(u)}&pwd=${encodeURIComponent(p)}`);
+    if (!r.ok) throw new Error('登录失败');
+    const d = await r.json();
+    localStorage.setItem(TOKEN_KEY, d.token);
+    renderDashboard();
+  } catch (e) {
+    document.getElementById('err').textContent = '账号或密码错误';
+  }
+}
+
+// === Dashboard ===
+let charts = {};
+async function renderDashboard() {
+  document.getElementById('app').innerHTML = `
+    <div class="container">
+      <header>
+        <h1>📊 知几察微 · 管理后台</h1>
+        <div>
+          <button class="refresh-btn" onclick="renderDashboard()">🔄 刷新</button>
+          <button class="logout-btn" onclick="logout()" style="margin-left:8px;">登出</button>
+        </div>
+      </header>
+
+      <div class="cards" id="cards"></div>
+
+      <div class="grid2">
+        <div class="panel">
+          <h2>📈 7 天访问趋势</h2>
+          <canvas id="c-daily"></canvas>
+        </div>
+        <div class="panel">
+          <h2>⏰ 24 小时访问分布</h2>
+          <canvas id="c-hourly"></canvas>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="panel">
+          <h2>📱 设备分布（24h）</h2>
+          <canvas id="c-device"></canvas>
+        </div>
+        <div class="panel">
+          <h2>🌐 浏览器分布（24h）</h2>
+          <canvas id="c-browser"></canvas>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom: 20px;">
+        <h2>📰 数据源条数</h2>
+        <div id="sources-list"></div>
+      </div>
+
+      <div class="panel">
+        <h2>👥 最近 30 条访问记录</h2>
+        <table>
+          <thead><tr><th>时间</th><th>设备</th><th>浏览器</th><th>路径</th><th>IP</th><th>Session</th></tr></thead>
+          <tbody id="visitors"></tbody>
+        </table>
+      </div>
+    </div>`;
+
+  await loadData();
+}
+
+async function fetchAuth(url) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const r = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+  if (r.status === 401 || r.status === 403) { logout(); throw new Error('token expired'); }
+  return r.json();
+}
+
+async function loadData() {
+  const [stats, content, visitors] = await Promise.all([
+    fetchAuth(`${API_BASE}/api/admin/stats`),
+    fetchAuth(`${API_BASE}/api/admin/content-stats`),
+    fetchAuth(`${API_BASE}/api/admin/recent-visitors?limit=30`),
+  ]);
+
+  // Cards
+  document.getElementById('cards').innerHTML = `
+    <div class="card green"><div class="label">🟢 实时在线</div><div class="value">${stats.online}</div></div>
+    <div class="card"><div class="label">📊 24h PV</div><div class="value">${stats.pv_24h}</div></div>
+    <div class="card"><div class="label">👤 24h UV</div><div class="value">${stats.uv_24h}</div></div>
+    <div class="card"><div class="label">📅 7d PV</div><div class="value">${stats.pv_7d}</div></div>
+    <div class="card"><div class="label">📆 30d PV</div><div class="value">${stats.pv_30d}</div></div>
+    <div class="card amber"><div class="label">🇨🇳 国内</div><div class="value">${content.domestic}</div></div>
+    <div class="card purple"><div class="label">🌍 海外</div><div class="value">${content.overseas}</div></div>
+    <div class="card green"><div class="label">📜 纪要</div><div class="value">${content.minutes}</div></div>`;
+
+  // Destroy old charts
+  Object.values(charts).forEach(c => c && c.destroy());
+
+  // Daily chart
+  charts.daily = new Chart(document.getElementById('c-daily'), {
+    type: 'line',
+    data: {
+      labels: stats.daily_7d.map(d => d.date.slice(5)),
+      datasets: [{
+        label: 'PV', data: stats.daily_7d.map(d => d.count),
+        borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)',
+        tension: 0.3, fill: true,
+      }],
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+  });
+
+  // Hourly
+  charts.hourly = new Chart(document.getElementById('c-hourly'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(stats.hourly_24h),
+      datasets: [{ label: 'PV', data: Object.values(stats.hourly_24h), backgroundColor: '#60a5fa' }],
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+  });
+
+  // Device
+  const deviceLabels = { pc: 'PC', mobile: 'Mobile', tablet: 'Tablet' };
+  const devData = Object.entries(stats.devices);
+  charts.device = new Chart(document.getElementById('c-device'), {
+    type: 'doughnut',
+    data: {
+      labels: devData.map(([k]) => deviceLabels[k] || k),
+      datasets: [{ data: devData.map(([_, v]) => v), backgroundColor: ['#2563eb', '#22c55e', '#f59e0b'] }],
+    },
+    options: { plugins: { legend: { position: 'bottom' } } },
+  });
+
+  // Browser
+  const browserColors = ['#2563eb', '#22c55e', '#f59e0b', '#a855f7', '#ec4899'];
+  const brData = Object.entries(stats.browsers);
+  charts.browser = new Chart(document.getElementById('c-browser'), {
+    type: 'doughnut',
+    data: {
+      labels: brData.map(([k]) => k),
+      datasets: [{ data: brData.map(([_, v]) => v), backgroundColor: browserColors }],
+    },
+    options: { plugins: { legend: { position: 'bottom' } } },
+  });
+
+  // Sources
+  const maxCount = content.sources[0]?.count || 1;
+  document.getElementById('sources-list').innerHTML = content.sources.map(s => `
+    <div class="bar">
+      <span class="name"><span class="tag">${s.source_id}</span></span>
+      <span class="fill"><div style="width: ${(s.count / maxCount * 100).toFixed(0)}%"></div></span>
+      <span class="cnt">${s.count}</span>
+    </div>`).join('');
+
+  // Visitors
+  document.getElementById('visitors').innerHTML = visitors.map(v => `
+    <tr>
+      <td>${v.time}</td>
+      <td>${v.device}</td>
+      <td>${v.browser}</td>
+      <td>${v.path}</td>
+      <td>${v.ip || '-'}</td>
+      <td>${v.session || '-'}</td>
+    </tr>`).join('');
+}
+
+function logout() {
+  localStorage.removeItem(TOKEN_KEY);
+  renderLogin();
+}
+
+// Auto-refresh every 30s
+setInterval(() => {
+  if (localStorage.getItem(TOKEN_KEY)) loadData();
+}, 30000);
+
+// Init
+if (localStorage.getItem(TOKEN_KEY)) renderDashboard();
+else renderLogin();
+
+// Enter to login
+document.addEventListener('keypress', e => {
+  if (e.key === 'Enter' && !localStorage.getItem(TOKEN_KEY)) doLogin();
+});
+</script>
+</body>
+</html>
