@@ -368,13 +368,15 @@ body {
 
 <!-- 实时推送 -->
 <!-- AI 研判页 -->
-<div id="radar-page" style="display:none;padding:16px;max-width:1400px;margin:0 auto;">
+<div id="radar-page" style="display:none;padding:16px;max-width:1400px;margin:0 auto;overflow-y:auto;flex:1;min-height:0;">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
     <div style="display:flex;align-items:center;gap:12px;">
       <span style="font-size:18px;font-weight:600;color:#1f2937;">🎯 AI 研判</span>
       <span id="radar-updated-at" style="font-size:12px;color:#64748b;"></span>
     </div>
     <div style="display:flex;gap:8px;">
+      <button onclick="toggleAllRadarCards(true)" class="btn btn-secondary" style="padding:6px 14px;font-size:13px;">🔽 一键展开</button>
+      <button onclick="toggleAllRadarCards(false)" class="btn btn-secondary" style="padding:6px 14px;font-size:13px;">🔼 一键收起</button>
       <button onclick="refreshRadar()" class="btn btn-secondary" style="padding:6px 14px;font-size:13px;">🔄 刷新</button>
     </div>
   </div>
@@ -390,26 +392,26 @@ body {
   <!-- 4 张状态卡 -->
   <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;">
     <div id="card-main-line" class="radar-card">
-      <div class="radar-card-header">🎯 市场主线</div>
+      <div class="radar-card-header" onclick="toggleRadarCard('card-main-line')">🎯 市场主线 <span class="radar-card-toggle">▶</span></div>
       <div class="radar-card-title">—</div>
       <div class="radar-card-tags"></div>
       <div class="radar-card-evidence"></div>
       <div class="radar-card-judgment"></div>
     </div>
     <div id="card-expectation-up" class="radar-card">
-      <div class="radar-card-header">📈 预期改善</div>
+      <div class="radar-card-header" onclick="toggleRadarCard('card-expectation-up')">📈 预期改善 <span class="radar-card-toggle">▶</span></div>
       <div class="radar-card-title">—</div>
       <div class="radar-card-evidence"></div>
       <div class="radar-card-judgment"></div>
     </div>
     <div id="card-expectation-down" class="radar-card">
-      <div class="radar-card-header">📉 预期恶化</div>
+      <div class="radar-card-header" onclick="toggleRadarCard('card-expectation-down')">📉 预期恶化 <span class="radar-card-toggle">▶</span></div>
       <div class="radar-card-title">—</div>
       <div class="radar-card-evidence"></div>
       <div class="radar-card-judgment"></div>
     </div>
     <div id="card-price-divergence" class="radar-card">
-      <div class="radar-card-header">⚖️ 新闻-价格背离</div>
+      <div class="radar-card-header" onclick="toggleRadarCard('card-price-divergence')">⚖️ 新闻-价格背离 <span class="radar-card-toggle">▶</span></div>
       <div class="radar-card-title">—</div>
       <div class="radar-card-evidence"></div>
       <div class="radar-card-judgment"></div>
