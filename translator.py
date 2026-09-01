@@ -7,26 +7,11 @@
 """
 import hashlib, hmac, json, time, urllib.request, os, threading
 
-# ──────────── 密钥（从 .env 读） ────────────
-def _load_keys():
-    """从 /var/www/jeeseek/api/.env 读密钥"""
-    keys = {}
-    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
-    if not os.path.exists(env_path):
-        return keys
-    with open(env_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'): continue
-            if '=' in line:
-                k, v = line.split('=', 1)
-                keys[k.strip()] = v.strip()
-    return keys
-
-_K = _load_keys()
-SECRET_ID = os.environ.get('TENCENT_TMT_SECRET_ID') or _K.get('TENCENT_TMT_SECRET_ID', '')
-SECRET_KEY = os.environ.get('TENCENT_TMT_SECRET_KEY') or _K.get('TENCENT_TMT_SECRET_KEY', '')
-REGION = os.environ.get('TENCENT_TMT_REGION') or _K.get('TENCENT_TMT_REGION', 'ap-shanghai')
+# ──────────── 密钥（只从环境变量读） ────────────
+# fly.io / Koyeb 环境变量是唯一来源，避免 UTF-8 BOM .env 加载崩溃
+SECRET_ID = os.environ.get('TENCENT_TMT_SECRET_ID', '')
+SECRET_KEY = os.environ.get('TENCENT_TMT_SECRET_KEY', '')
+REGION = os.environ.get('TENCENT_TMT_REGION', 'ap-shanghai')
 
 ENDPOINT = 'tmt.tencentcloudapi.com'
 SERVICE = 'tmt'
