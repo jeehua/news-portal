@@ -739,8 +739,8 @@ class Broadcaster:
         for k in ('domestic', 'overseas', 'minutes'):
             v = snap.get(k, [])
             if len(v) > 200:
-                # 按 pub_ts 倒序保留最新的 200 条
-                v = sorted(v, key=lambda x: x.get('pub_ts', 0), reverse=True)[:200]
+                # 按 pub_ts 倒序保留最新的 50 条（256MB free tier 内存优化）
+                v = sorted(v, key=lambda x: x.get('pub_ts', 0), reverse=True)[:50]
             snap_trimmed[k] = v
         async with self.lock:
             self.snapshot = snap_trimmed
@@ -1175,7 +1175,8 @@ async def admin_recent_visitors(authorization: str = Header(None), limit: int = 
 
 # ============ AI 热点分析 ============
 from ai_analyzer import generate_report, _CACHE, _call_agnes
-from ai_radar import generate_radar, _load_radar_from_disk
+# 256MB 精简版：关闭 AI 研判（最占内存）
+# from ai_radar import generate_radar, _load_radar_from_disk
 
 @app.get('/api/ai/hotspot-analysis')
 async def api_ai_hotspot(force: int = 0):
@@ -1240,48 +1241,21 @@ async def api_ai_report(force: int = 0):
 
 
 
-# ============ AI 研判（4 卡 + 3 句话 + 主题雷达）============
+# ============ AI 研判（256MB 精简版已关闭）============
+# 256MB free tier 跑不动 AI 研判模块（生成 4 卡 + 3 句话 + 主题雷达内存开销大）
+# 路由保留以兼容前端，但返回禁用提示
 @app.get('/api/ai/radar')
 async def api_ai_radar(force: int = 0):
-    """AI 研判 JSON 接口：4 卡 + 3 句话 + 主题雷达"""
-    dom = BC.snapshot.get('domestic', [])
-    os_ = BC.snapshot.get('overseas', [])
-    mn = BC.snapshot.get('minutes', [])
-
-    if force:
-        result = await generate_radar(dom, os_, mn, force=True, _cache=_CACHE, _call_ai_fn=_call_agnes)
-        return result
-
-    disk_result = _load_radar_from_disk()
-    if disk_result:
-        async def _bg_refresh():
-            try:
-                await generate_radar(dom, os_, mn, force=False, _cache=_CACHE, _call_ai_fn=_call_agnes)
-                log.info('[jeeseek.radar] disk-fallback 后台刷新完成')
-            except Exception as e:
-                log.warning(f'[jeeseek.radar] disk-fallback 后台刷新失败: {e}')
-        asyncio.create_task(_bg_refresh())
-        return JSONResponse({
-            'success': True,
-            'data': disk_result.get('data'),
-            'meta': disk_result.get('meta'),
-            'cache': 'disk-fallback',
-        })
-
-    result = await generate_radar(dom, os_, mn, force=False, _cache=_CACHE, _call_ai_fn=_call_agnes)
-    return result
+    return JSONResponse({
+        'success': False,
+        'error': 'AI 研判功能在 256MB free tier 已禁用',
+        'message': '请升级到 512MB 或在 Koyeb 等平台恢复',
+    }, status_code=503)
 
 
 @app.get('/api/ai/radar/status')
 async def api_ai_radar_status():
-    from ai_radar import RADAR_OUTPUT_DIR
-    out_file = RADAR_OUTPUT_DIR / 'latest.json'
-    if not out_file.exists():
-        return {'has_data': False}
-    age = time.time() - out_file.stat().st_mtime
-    return {
-        'has_data': True,
-        'age_seconds': int(age),
+    return {'has_data': False, 'disabled': True, 'reason': '256MB free tier'}
         'updated_at': datetime.fromtimestamp(out_file.stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
     }
 
