@@ -19,3 +19,6 @@ lxml>=5.0.0
 # 时区处理
 pytz>=2023.3
 python-dateutil>=2.8.0
+
+# HTTP 客户端（market_data.py + ai_analyzer.py 都用）
+httpx>=0.27.0
