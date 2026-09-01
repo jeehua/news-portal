@@ -733,11 +733,20 @@ class Broadcaster:
         self.lock = asyncio.Lock()
 
     async def update(self, snap):
+        # 2026-09-01 研算子优化：限制内存占用，512MB 环境避免 OOM
+        # 600 条原始纪要全部加载太耗内存，限制每类最多 200 条
+        snap_trimmed = {}
+        for k in ('domestic', 'overseas', 'minutes'):
+            v = snap.get(k, [])
+            if len(v) > 200:
+                # 按 pub_ts 倒序保留最新的 200 条
+                v = sorted(v, key=lambda x: x.get('pub_ts', 0), reverse=True)[:200]
+            snap_trimmed[k] = v
         async with self.lock:
-            self.snapshot = snap
+            self.snapshot = snap_trimmed
             for q in self.subscribers:
                 try:
-                    q.put_nowait({'event': 'update', 'data': snap, 'ts': int(time.time())})
+                    q.put_nowait({'event': 'update', 'data': snap_trimmed, 'ts': int(time.time())})
                 except asyncio.QueueFull:
                     pass
 
@@ -782,9 +791,12 @@ ADMIN_USER = os.getenv('ADMIN_USER', 'admin')
 ADMIN_PASS = os.getenv('ADMIN_PASS', 'zhiji2026')  # 花总自己用,简单点
 ADMIN_TOKEN = os.getenv('ADMIN_TOKEN', 'zhiji-admin-token-2026')  # 简化版鉴权 token
 
-STATS_DIR = Path('/var/www/jeeseek/api/data')
+STATS_DIR = Path(os.getenv('STATS_DIR', '/app/data'))
 STATS_DIR.mkdir(parents=True, exist_ok=True)
 STATS_DB = STATS_DIR / 'stats.db'
+
+REPORTS_DIR = Path(os.getenv('REPORTS_DIR', '/app/reports'))
+REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 def _init_stats_db():
     conn = sqlite3.connect(str(STATS_DB))
@@ -1201,7 +1213,7 @@ async def api_ai_report(force: int = 0):
         return HTMLResponse(_CACHE[cache_key]['html'], headers={'Content-Type': 'text/html; charset=utf-8'})
 
     # 快速路径2: 磁盘兜底 (24h 内 latest.html 秒返 + 后台异步刷新)
-    latest = Path('/var/www/jeeseek/api/reports/latest.html')
+    latest = REPORTS_DIR / 'latest.html'
     if latest.exists():
         age = time.time() - latest.stat().st_mtime
         if age < 86400:

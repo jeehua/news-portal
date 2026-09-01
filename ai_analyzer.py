@@ -45,8 +45,8 @@ PROMPT_FILES = [
     Path(__file__).parent / 'ai_hotspot_prompt.txt',     # v1 兜底
 ]
 
-# === 报告输出目录 ===
-REPORTS_DIR = Path('/var/www/jeeseek/api/reports')
+# === 报告输出目录（从环境变量获取，默认 /app/reports 兼容 Fly.io/Koyeb）===
+REPORTS_DIR = Path(os.getenv('REPORTS_DIR', '/app/reports'))
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # === 缓存 ===

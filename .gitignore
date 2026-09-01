@@ -1,0 +1,34 @@
+# 敏感文件（绝对不 commit）
+.env
+.env.*
+*.key
+*.pem
+.aws/
+.ssh/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 日志 / 临时
+*.log
+*.tmp
+tmp/
+
+# 数据
+/app/data/*.db
+/app/reports/*.html
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
