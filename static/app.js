@@ -521,7 +521,7 @@ function renderMainLineCard(elId, card) {
   const el = $(elId);
   if (!el) return;
   if (!card || Object.keys(card).length === 0) {
-    el.innerHTML = '<div class="radar-card-header">🎯 市场主线</div><div class="radar-card-judgment">⚠️ 该卡片暂无数据</div>';
+    el.innerHTML = '<div class="radar-card-header" onclick="toggleRadarCard(\'${elId}\')">🎯 市场主线 <span class="radar-card-toggle">▶</span></div><div class="radar-card-judgment">⚠️ 该卡片暂无数据</div>';
     return;
   }
 
@@ -529,7 +529,7 @@ function renderMainLineCard(elId, card) {
   const dirColor = directionColor(dir);
 
   el.innerHTML = `
-    <div class="radar-card-header">🎯 市场主线</div>
+    <div class="radar-card-header" onclick="toggleRadarCard('${elId}')">🎯 市场主线 <span class="radar-card-toggle">▶</span></div>
     <div class="radar-card-title" style="color:${dirColor};">${escapeHtml(card.title || '—')}</div>
     <div class="radar-card-tags">
       <span class="radar-tag" style="background:${dirColor};color:white;font-weight:600;">${escapeHtml(dir || '—')}</span>
@@ -560,7 +560,7 @@ function renderExpectationCard(elId, card, type) {
   if (!card || Object.keys(card).length === 0) {
     const icon = type === 'up' ? '📈' : '📉';
     const headerText = type === 'up' ? '预期改善' : '预期恶化';
-    el.innerHTML = `<div class="radar-card-header">${icon} ${headerText}</div><div class="radar-card-judgment">⚠️ 该卡片暂无数据</div>`;
+    el.innerHTML = `<div class="radar-card-header" onclick="toggleRadarCard('${elId}')">${icon} ${headerText} <span class="radar-card-toggle">▶</span></div><div class="radar-card-judgment">⚠️ 该卡片暂无数据</div>`;
     return;
   }
 
@@ -569,7 +569,7 @@ function renderExpectationCard(elId, card, type) {
   const dirColor = directionColor(card.direction || '');
 
   el.innerHTML = `
-    <div class="radar-card-header">${icon} ${headerText}</div>
+    <div class="radar-card-header" onclick="toggleRadarCard('${elId}')">${icon} ${headerText} <span class="radar-card-toggle">▶</span></div>
     <div class="radar-card-title" style="color:${dirColor};">${escapeHtml(card.title || '—')}</div>
     <div class="radar-card-tags">
       <span class="radar-tag" style="background:${dirColor};color:white;font-weight:600;">${escapeHtml(card.direction || '—')}</span>
@@ -589,7 +589,7 @@ function renderPriceDivergenceCard(elId, card) {
   const el = $(elId);
   if (!el) return;
   if (!card || Object.keys(card).length === 0) {
-    el.innerHTML = '<div class="radar-card-header">⚖️ 新闻-价格背离</div><div class="radar-card-judgment">⚠️ 当前价格数据不可用,无法进行背离检测</div>';
+    el.innerHTML = '<div class="radar-card-header" onclick="toggleRadarCard(\'' + elId + '\')">⚖️ 新闻-价格背离 <span class="radar-card-toggle">▶</span></div><div class="radar-card-judgment">⚠️ 当前价格数据不可用,无法进行背离检测</div>';
     return;
   }
 
@@ -598,7 +598,7 @@ function renderPriceDivergenceCard(elId, card) {
   const statusColor = aiStatus.code === 'complete' ? '#059669' : '#f59e0b';
 
   el.innerHTML = `
-    <div class="radar-card-header">⚖️ 新闻-价格背离</div>
+    <div class="radar-card-header" onclick="toggleRadarCard('${elId}')">⚖️ 新闻-价格背离 <span class="radar-card-toggle">▶</span></div>
     <div class="radar-card-title">${escapeHtml(card.title || '未检测到背离')}</div>
     <div class="radar-card-tags">
       <span class="radar-tag" style="background:#f97316;color:white;font-weight:600;">${escapeHtml(card.divergence_type || '—')}</span>
