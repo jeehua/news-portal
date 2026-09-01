@@ -16,7 +16,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # 数据持久化目录（fly.io 使用 volumes）
-RUN mkdir -p /app/data /app/reports
+# 同时创建 server.py 需要的日志目录
+RUN mkdir -p /app/data /app/reports /var/log/jeeseek && \
+    chmod 777 /var/log/jeeseek
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
