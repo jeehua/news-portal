@@ -1256,8 +1256,6 @@ async def api_ai_radar(force: int = 0):
 @app.get('/api/ai/radar/status')
 async def api_ai_radar_status():
     return {'has_data': False, 'disabled': True, 'reason': '256MB free tier'}
-        'updated_at': datetime.fromtimestamp(out_file.stat().st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
-    }
 
 @app.get('/api/ai/keywords')
 async def api_ai_keywords(limit: int = 50):
