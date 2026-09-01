@@ -709,9 +709,9 @@ def fetch_minutes_parallel() -> List[dict]:
     """机构纪要：不加 cutoff，全部显示（2026-08-27 花总拍）"""
     f = EXECUTOR.submit(_fetch_zsxq)
     try:
-        items = f.result(timeout=35)
+        items = f.result(timeout=90)  # zsxq 拉取可能很慢，2026-09-01 实测偶尔 40-90s
     except Exception as e:
-        log.warning(f'minutes: {e}')
+        log.warning(f'minutes timeout/err: {type(e).__name__}: {e}')
         return []
     # 2026-08-27 改：去掉 48h cutoff，保留所有纪要（前端分页展示）
     # 去重（按 topic_id）
