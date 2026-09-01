@@ -8,6 +8,7 @@
 import asyncio
 import json
 import logging
+import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -15,8 +16,8 @@ from typing import Any, Dict, List, Optional
 
 log = logging.getLogger('jeeseek.radar')
 
-RADAR_PROMPT_FILE = Path('/var/www/jeeseek/api/prompts/radar_prompt.txt')
-RADAR_OUTPUT_DIR = Path('/var/www/jeeseek/api/reports/radar')
+RADAR_PROMPT_FILE = Path(__file__).parent / 'prompts' / 'radar_prompt.txt'
+RADAR_OUTPUT_DIR = Path(os.getenv('REPORTS_DIR', '/app/reports')) / 'radar'
 
 
 def _load_radar_prompt() -> Optional[str]:
