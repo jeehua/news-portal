@@ -1,39 +1,42 @@
-# Fly.io configuration for jeeseek.top
-# Free tier: 3 shared-cpu-1x 256MB VMs, no card required
-app = "jeeseek-fly"
-primary_region = "sin"  # 新加坡，距离国内最近
+# fly.toml app configuration file generated for jeeseek-fly on 2026-09-01T13:50:12+08:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'jeeseek-fly'
+primary_region = 'sin'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
+
+[deploy]
+  release_command = 'echo Deployment ready'
 
 [env]
-  PORT = "8001"
-  FETCH_INTERVAL = "30"
-  LISTEN_HOST = "0.0.0.0"
+  FETCH_INTERVAL = '30'
+  LISTEN_HOST = '0.0.0.0'
+  PORT = '8001'
 
 [[services]]
-  protocol = "tcp"
+  protocol = 'tcp'
   internal_port = 8001
-  processes = ["app"]
+  processes = ['app']
 
   [[services.ports]]
     port = 80
-    handlers = ["http"]
+    handlers = ['http']
     force_https = true
 
   [[services.ports]]
     port = 443
-    handlers = ["tls", "http"]
+    handlers = ['tls', 'http']
 
   [services.concurrency]
-    type = "connections"
+    type = 'connections'
     hard_limit = 100
     soft_limit = 80
 
 [[vm]]
-  cpu_kind = "shared"
+  memory = '512mb'
   cpus = 1
-  memory_mb = 512  # free tier max is 256MB, but 512 helps with feedparser loads
-
-[deploy]
-  release_command = "echo Deployment ready"
+  memory_mb = 512
