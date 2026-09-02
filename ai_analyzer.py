@@ -38,6 +38,7 @@ AGNES_BASE = os.getenv('AGNES_API_BASE', 'https://apihub.agnes-ai.com/v1')
 AGNES_MODEL = os.getenv('AGNES_MODEL', 'agnes-2.0-flash')
 AGNES_TIMEOUT = int(os.getenv('AGNES_TIMEOUT', '180'))
 AGNES_MAX_TOKENS = int(os.getenv('AGNES_MAX_TOKENS', '12000'))
+AGNES_MAX_TOKENS_DEPTH = int(os.getenv('AGNES_MAX_TOKENS_DEPTH', '16000'))  # depth 模式需要更多 token（5-8 赛道 × 12 要闻）
 
 # === Prompt 路径（v3 为主，v1 fallback） ===
 PROMPT_FILES = [
@@ -267,11 +268,11 @@ def _format_news(news_list: List[Dict], limit: int = 50) -> str:
 # ──────────────────────────────
 # Agnes API 调用
 # ──────────────────────────────
-def _call_agnes(system: str, user: str) -> str:
+def _call_agnes(system: str, user: str, max_tokens: int = None, timeout: int = None) -> str:
     client = openai.OpenAI(
         api_key=AGNES_API_KEY,
         base_url=AGNES_BASE,
-        timeout=AGNES_TIMEOUT,
+        timeout=timeout or AGNES_TIMEOUT,
     )
     resp = client.chat.completions.create(
         model=AGNES_MODEL,
@@ -279,7 +280,7 @@ def _call_agnes(system: str, user: str) -> str:
             {'role': 'system', 'content': system},
             {'role': 'user', 'content': user},
         ],
-        max_tokens=AGNES_MAX_TOKENS,
+        max_tokens=max_tokens or AGNES_MAX_TOKENS,
         temperature=0.5,
     )
     return resp.choices[0].message.content or ''
@@ -952,9 +953,9 @@ async def generate_report(
     system_p, user_tpl = _split_system_user(prompt_text)
 
     # depth 模式增加纪要额度（重点是机构调研内容）
-    dom_limit = 40 if mode == 'macro' else 30
-    os_limit = 40 if mode == 'macro' else 30
-    min_limit = 20 if mode == 'macro' else 50  # depth 优先消化纪要
+    dom_limit = 40 if mode == 'macro' else 80  # depth 增加国内要闻采样
+    os_limit = 40 if mode == 'macro' else 60  # depth 增加海外采样
+    min_limit = 20 if mode == 'macro' else 100  # depth 优先消化纪要
 
     # 格式化数据
     domestic_text = _format_news(domestic, limit=dom_limit)
@@ -977,10 +978,12 @@ async def generate_report(
 
     # 调用 AI（depth 模式增加超时，因为 token 更多）
     loop = asyncio.get_event_loop()
-    timeout = AGNES_TIMEOUT + (30 if mode == 'depth' else 10)
+    timeout = AGNES_TIMEOUT + (60 if mode == 'depth' else 10)
     try:
+        # depth 模式使用更多 max_tokens（5-8 赛道 × 12 要闻 ≈ 16K）
+        max_tokens = AGNES_MAX_TOKENS_DEPTH if mode == 'depth' else AGNES_MAX_TOKENS
         raw = await asyncio.wait_for(
-            loop.run_in_executor(None, _call_agnes, system_p, user_p),
+            loop.run_in_executor(None, _call_agnes, system_p, user_p, max_tokens, timeout),
             timeout=timeout
         )
     except asyncio.TimeoutError:
