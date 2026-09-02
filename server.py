@@ -685,10 +685,34 @@ def _fetch_zsxq() -> List[dict]:
             if not inner.get('has_more') or len(topics) < 30:
                 break
         log.info(f'zsxq 拉取成功: {len(all_topics)} 条')
+        # 2026-09-03 v4.4: 调试打印一条 topic 实际字段（部署后看日志）
+        if all_topics and os.getenv('ZSXQ_DEBUG_TOPIC', '1') == '1':
+            sample = all_topics[0]
+            log.info(f'[zsxq sample topic] keys={list(sample.keys())} sample={str(sample)[:500]}')
+            os.environ['ZSXQ_DEBUG_TOPIC'] = '0'  # 只打一次
         topics = all_topics
+        skipped_short = 0
+        skipped_empty = 0
+        skipped_type = 0
         for t in topics:
-            title = t.get('title','').strip() or t.get('content','')[:80]
+            topic_type = t.get('type', '') or t.get('talk_type', '')
             content = t.get('content','').strip()
+            title = t.get('title','').strip() or t.get('content','')[:80]
+
+            # v4.4: 过滤纯附件 topic（图片/文件/音频）
+            # 1. 有明确 type 字段且不是 talk/q&a/short_text/digest
+            if topic_type and topic_type not in ('talk', 'q&a', 'short_text', 'digest', ''):
+                skipped_type += 1
+                continue
+            # 2. content 短且没有 title → 几乎肯定是纯附件
+            if not content and not title:
+                skipped_empty += 1
+                continue
+            # 3. content 太短 (< 20字) 且 title 也短 → 可能是纯图片描述/文件说明
+            if len(content) < 20 and len(title) < 20:
+                skipped_short += 1
+                continue
+
             create_time = t.get('create_time','')
             pub_ts = _parse_iso(create_time)
             topic_id = t.get('topic_id','')
@@ -703,7 +727,7 @@ def _fetch_zsxq() -> List[dict]:
                 'url': f'https://wx.zsxq.com/detailed/{topic_id}',
                 'content': content,
             })
-        log.info(f'zsxq 拉取成功: {len(items)} 条')
+        log.info(f'zsxq 过滤: type={skipped_type} short={skipped_short} empty={skipped_empty} → 保留 {len(items)} 条')
     except Exception as e:
         log.warning(f'zsxq: {e}')
     return items
