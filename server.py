@@ -8,13 +8,16 @@
 - 国内 10 源 + 海外 14 源 = 24 源全开
 """
 
-import os, sys, json, asyncio, logging, sqlite3, glob, time, re, urllib.request, urllib.error
+import os, sys, json, asyncio, logging, glob, time, re, urllib.request, urllib.error
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import AsyncGenerator, List, Dict, Any
 import feedparser
 import socket
 from concurrent.futures import ThreadPoolExecutor
+
+# 数据库抽象层（Render 部署用 Postgres / 本地用 SQLite）
+import db
 
 # 腾讯云机器翻译(实时翻译海外资讯)
 try:
@@ -793,44 +796,20 @@ ADMIN_TOKEN = os.getenv('ADMIN_TOKEN', 'zhiji-admin-token-2026')  # 简化版鉴
 
 STATS_DIR = Path(os.getenv('STATS_DIR', '/app/data'))
 STATS_DIR.mkdir(parents=True, exist_ok=True)
-STATS_DB = STATS_DIR / 'stats.db'
 
 REPORTS_DIR = Path(os.getenv('REPORTS_DIR', '/app/reports'))
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
+# 数据库初始化（兼容 Postgres/Supabase 和本地 SQLite）
 def _init_stats_db():
-    conn = sqlite3.connect(str(STATS_DB))
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS visit_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ts INTEGER NOT NULL,
-        ip TEXT, country TEXT, device TEXT, browser TEXT,
-        path TEXT, referrer TEXT, session_id TEXT, duration INTEGER
-    )''')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_ts ON visit_logs(ts)')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_session ON visit_logs(session_id)')
-    c.execute('''CREATE TABLE IF NOT EXISTS news_clicks (
-        news_id TEXT PRIMARY KEY,
-        source_id TEXT,
-        title TEXT,
-        url TEXT,
-        click_count INTEGER DEFAULT 0,
-        last_click_ts INTEGER
-    )''')
-    c.execute('''CREATE TABLE IF NOT EXISTS source_stats (
-        source_id TEXT PRIMARY KEY,
-        date TEXT,
-        success_count INTEGER DEFAULT 0,
-        fail_count INTEGER DEFAULT 0
-    )''')
-    conn.commit()
-    conn.close()
+    """向后兼容的 init 函数，实际调用 db.init_schema()"""
+    db.init_schema()
 
 def _log_visit(ip, device, browser, path, referrer, session_id, duration=0):
     try:
-        conn = sqlite3.connect(str(STATS_DB), timeout=2)
+        conn = db.connect()
         c = conn.cursor()
-        c.execute('INSERT INTO visit_logs (ts, ip, device, browser, path, referrer, session_id, duration) VALUES (?,?,?,?,?,?,?,?)',
+        c.execute('INSERT INTO visit_logs (ts, ip, device, browser, path, referrer, session_id, duration) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)',
                   (int(time.time()), ip, device, browser, path[:200] if referrer else path, referrer[:200] if referrer else '', session_id, duration))
         conn.commit()
         conn.close()
@@ -1093,41 +1072,51 @@ async def admin_login(user: str, pwd: str):
 async def admin_stats(authorization: str = Header(None)):
     """仪表盘聚合数据"""
     _check_admin(authorization)
-    conn = sqlite3.connect(str(STATS_DB), timeout=5)
+    conn = db.connect()
     c = conn.cursor()
     now = int(time.time())
     h24 = now - 86400
     h7 = now - 86400 * 7
     h30 = now - 86400 * 30
 
-    # PV / UV
-    c.execute('SELECT COUNT(*) FROM visit_logs WHERE ts>=?', (h24,))
+    # PV / UV（Postgres 用 %s，SQLite 也能用 %s 风格如果用 sqlite3 — 但保持 ? 让两边都用 db.connect）
+    # psycopg2 用 %s, sqlite3 也支持 %s 在新版但为兼容用 qmark ?
+    # 用 ? 占位符（sqlite3 原生，psycopg2 需换 %s）— 我们全部统一改 %s 走 psycopg2 + sqlite3 兼容
+    c.execute('SELECT COUNT(*) FROM visit_logs WHERE ts>=%s', (h24,))
     pv24 = c.fetchone()[0]
-    c.execute('SELECT COUNT(DISTINCT session_id) FROM visit_logs WHERE ts>=?', (h24,))
+    c.execute('SELECT COUNT(DISTINCT session_id) FROM visit_logs WHERE ts>=%s', (h24,))
     uv24 = c.fetchone()[0]
-    c.execute('SELECT COUNT(*) FROM visit_logs WHERE ts>=?', (h7,))
+    c.execute('SELECT COUNT(*) FROM visit_logs WHERE ts>=%s', (h7,))
     pv7 = c.fetchone()[0]
-    c.execute('SELECT COUNT(*) FROM visit_logs WHERE ts>=?', (h30,))
+    c.execute('SELECT COUNT(*) FROM visit_logs WHERE ts>=%s', (h30,))
     pv30 = c.fetchone()[0]
 
     # 实时在线(最近 5 分钟)
-    c.execute('SELECT COUNT(DISTINCT session_id) FROM visit_logs WHERE ts>=?', (now - 300,))
+    c.execute('SELECT COUNT(DISTINCT session_id) FROM visit_logs WHERE ts>=%s', (now - 300,))
     online = c.fetchone()[0]
 
     # 设备分布(24h)
-    c.execute('SELECT device, COUNT(*) FROM visit_logs WHERE ts>=? GROUP BY device', (h24,))
+    c.execute('SELECT device, COUNT(*) FROM visit_logs WHERE ts>=%s GROUP BY device', (h24,))
     devices = dict(c.fetchall())
-    c.execute('SELECT browser, COUNT(*) FROM visit_logs WHERE ts>=? GROUP BY browser', (h24,))
+    c.execute('SELECT browser, COUNT(*) FROM visit_logs WHERE ts>=%s GROUP BY browser', (h24,))
     browsers = dict(c.fetchall())
 
-    # 24h 小时分布
-    c.execute("SELECT strftime('%H', datetime(ts, 'unixepoch', '+8 hours')), COUNT(*) FROM visit_logs WHERE ts>=? GROUP BY 1", (h24,))
-    hourly = {int(k or 0): v for k, v in c.fetchall()}
+    # 24h 小时分布（Postgres: 用 to_char，SQLite: 用 db.hour_in_cn）
+    if db.USE_POSTGRES:
+        c.execute("SELECT EXTRACT(HOUR FROM (to_timestamp(ts) AT TIME ZONE 'Asia/Shanghai'))::int, COUNT(*) FROM visit_logs WHERE ts>=%s GROUP BY 1", (h24,))
+        hourly = {int(k or 0): v for k, v in c.fetchall()}
+    else:
+        c.execute("SELECT strftime('%H', datetime(ts, 'unixepoch', '+8 hours')), COUNT(*) FROM visit_logs WHERE ts>=%s GROUP BY 1", (h24,))
+        hourly = {int(k or 0): v for k, v in c.fetchall()}
     hourly_full = {f'{h:02d}': hourly.get(h, 0) for h in range(24)}
 
     # 7 天趋势
-    c.execute("SELECT date(datetime(ts, 'unixepoch', '+8 hours')), COUNT(*) FROM visit_logs WHERE ts>=? GROUP BY 1 ORDER BY 1", (h7,))
-    daily = dict(c.fetchall())
+    if db.USE_POSTGRES:
+        c.execute("SELECT to_char(to_timestamp(ts) AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD'), COUNT(*) FROM visit_logs WHERE ts>=%s GROUP BY 1 ORDER BY 1", (h7,))
+        daily = dict(c.fetchall())
+    else:
+        c.execute("SELECT date(datetime(ts, 'unixepoch', '+8 hours')), COUNT(*) FROM visit_logs WHERE ts>=%s GROUP BY 1 ORDER BY 1", (h7,))
+        daily = dict(c.fetchall())
     daily_full = []
     for i in range(7):
         d = (datetime.now() - timedelta(days=6-i)).strftime('%Y-%m-%d')
@@ -1163,9 +1152,9 @@ async def admin_content_stats(authorization: str = Header(None)):
 async def admin_recent_visitors(authorization: str = Header(None), limit: int = 30):
     """最近访问记录"""
     _check_admin(authorization)
-    conn = sqlite3.connect(str(STATS_DB), timeout=5)
+    conn = db.connect()
     c = conn.cursor()
-    c.execute('SELECT ts, ip, device, browser, path, session_id FROM visit_logs ORDER BY ts DESC LIMIT ?', (limit,))
+    c.execute('SELECT ts, ip, device, browser, path, session_id FROM visit_logs ORDER BY ts DESC LIMIT %s', (limit,))
     rows = c.fetchall()
     conn.close()
     return [{
