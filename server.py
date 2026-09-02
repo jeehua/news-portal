@@ -32,7 +32,7 @@ import pytz
 # ──────────── 配置 ────────────
 TZ_CN = pytz.timezone('Asia/Shanghai')
 LISTEN_HOST = os.getenv('LISTEN_HOST', '0.0.0.0')
-LISTEN_PORT = int(os.getenv('LISTEN_PORT', '8001'))
+LISTEN_PORT = int(os.getenv('PORT', os.getenv('LISTEN_PORT', '8080')))
 FETCH_INTERVAL = int(os.getenv('FETCH_INTERVAL', '30'))  # 60 → 30
 
 UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36'

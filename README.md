@@ -1,82 +1,59 @@
-# jeeseek.top on fly.io
+# jeeseek — 知几察微 v3（部署到 Zeabur Free）
 
-把 jeeseek 部署到 fly.io 免费层（新加坡节点），绕过腾讯云备案拦截。
+**当前部署目标**：Zeabur Free（$0/月，零扣费风险）
 
-## 部署步骤
+⚠️ **不支持 jeeseek.top 自定义域名**（Zeabur Free 限制），用 `jeeseek.zeabur.app` 子域名
 
-### 1. 安装 flyctl CLI（花总本地或我代操作）
-```bash
-# Windows (PowerShell)
-iwr https://fly.io/install.ps1 -useb | iex
+详细部署步骤见 [ZEABUR_DEPLOY.md](./ZEABUR_DEPLOY.md)
 
-# 登录
-flyctl auth login
-```
+## 历史部署（已废弃）
 
-### 2. 创建 app
-```bash
-flyctl apps create jeeseek-fly --region sin
-flyctl volumes create jeeseek_data --size 1 --region sin
-```
+- ~~fly.io 256MB~~ → ❌ 9-1 晚上扣费 $0.08，9-2 早停机
+- ~~AWS 18.138.236.151~~ → ❌ 已停
 
-### 3. 设置环境变量
-```bash
-flyctl secrets set \
-  AGNES_API_KEY="sk-..." \
-  TENCENT_TMT_SECRET_ID="..." \
-  TENCENT_TMT_SECRET_KEY="..." \
-  TAVILY_API_KEY="..." \
-  FETCH_INTERVAL=30
-```
+## 快速部署（Zeabur Free）
 
-### 4. 部署
-```bash
-flyctl deploy --remote-only
-```
+1. 花总去 https://zeabur.com 注册（GitHub OAuth，5 分钟）
+2. 花总把本地代码 push 到 GitHub repo `1425338838-byte/jeeseek-fly`
+3. Zeabur dashboard → Create Project → Add Service → GitHub → 选 repo → Deploy
+4. 在 Configuration 里设环境变量（见 ZEABUR_DEPLOY.md）
+5. 部署完成后访问 `https://jeeseek.zeabur.app`（自动分配子域名）
 
-### 5. 绑定域名
-```bash
-flyctl certs create jeeseek.top
-flyctl certs create www.jeeseek.top
-```
+## 关键文件
 
-### 6. DNS 切换（DNSPod）
-- 删 A 记录 `123.207.232.102`
-- 加 A 记录 → fly.io 给的 IP（`flyctl info` 查看）
-
-## 关键配置
-
-- **Region**: sin (Singapore) - 距离国内 50-80ms
-- **Memory**: 256MB (free tier max)
-- **Cold start**: ~5s（首次部署）
-- **Free quota**: 3 shared-cpu-1x VMs, 160GB egress/month
-
-## 文件说明
-
-- `fly.toml` - fly.io 主配置
-- `Dockerfile` - 镜像构建
-- `fly.volumes.toml` - 数据持久化卷
+- `Dockerfile` - Zeabur 自动识别（python:3.11-slim）
+- `ZEABUR_DEPLOY.md` - 详细部署文档
+- `server.py` - 主应用（已读 PORT 环境变量）
 - `requirements.txt` - Python 依赖
-- `server.py` - 应用主入口
+- `translator.py` - 腾讯云翻译（只读环境变量）
+- `ai_analyzer.py` - AI 报告生成
+- `ai_radar.py` - AI 研判（256MB 模式注释掉）
+- `keywords.py` - 关键词聚合
+- `market_data.py` - 市场数据
 - `static/` - 前端静态文件
+- `.env` - **不 commit 到 GitHub**（含 secrets）
 
-## 注意事项
+## Zeabur Free 限制
 
-1. **环境变量**：从 E:\openclaw\本地知识库\jeeseek_latest\.env 拷贝
-2. **数据采集**：RSS 抓取需要外网，fly.io 新加坡节点默认有外网
-3. **HTTPS**：fly.io 自动用 Let's Encrypt 签证书
-4. **数据持久化**：SQLite db 必须挂载到 volume，否则重启丢数据
-
-## 当前状态
-
-- ✅ 代码准备好（E:\openclaw\本地知识库\jeeseek_fly\）
-- ⏳ 等待花总：fly.io 账号（已注册）
-- ⏳ 等待花总：flyctl CLI 安装
-- ⏳ 等待花总：执行部署命令
+| 项 | 限制 |
+|---|---|
+| 月费 | $0 |
+| 信用卡 | 不需要 |
+| 自定义域名 | ❌ 不支持（用 zeabur.app 子域名）|
+| Spin down | ✅ 会休眠（类似 Render） |
+| 日志保留 | 48h |
+| 数据持久化 | ❌ 临时盘（重启 SQLite 清空） |
+| 流量上限 | 隐性 |
 
 ## 备案绕过原理
 
-- fly.io 新加坡节点，**不在中国大陆**，**不需要工信部备案**
-- DNS A 记录直接指向 fly.io IP
-- 域名解析在境外，不受国内 DNS 污染/劫持
-- fly.io 自带 Cloudflare CDN 加速
+- Zeabur 境外节点（亚洲或欧美），**不在中国大陆**，**不需要工信部备案**
+- DNS 通过 Cloudflare 解析，不受国内 DNS 污染/劫持
+- HTTPS 自动证书
+
+## 关键时间线
+
+- 2026-09-02：决定迁移到 Zeabur Free（fly.io 扣费问题）
+- 2026-09-02 早：fly.io 机器已停（scale count 0）
+- 2026-09-02 中：代码改 Zeabur 兼容（PORT=8080）
+- 2026-09-02：等花总注册 Zeabur + push GitHub

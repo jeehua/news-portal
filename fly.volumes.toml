@@ -1,5 +1,0 @@
-# fly.io volume mount for data persistence
-# Created via: flyctl volumes create jeeseek_data --size 1
-[mounts]
-  source = "jeeseek_data"
-  destination = "/app/data"
