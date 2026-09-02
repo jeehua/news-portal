@@ -265,6 +265,144 @@ def _format_news(news_list: List[Dict], limit: int = 50) -> str:
     return '\n'.join(lines) if lines else '（无数据）'
 
 
+# ────────────────────────────
+# v4.2: 赛道关键词预分类（让纪要文本带上赛道标签，让 AI 知道归到哪）
+# ────────────────────────────
+SECTOR_KEYWORDS = {
+    'AI 算力链': [
+        '光模块', '光通信', 'CPO', 'PCB', 'GPU', 'HBM', 'DDR5', '服务器', '数据中心', '液冷', '电源',
+        'NV', 'NVIDIA', 'AMD', 'GOOGL', 'TPU', 'TSMC', '台积电', '联电', '中际旭创', '新易盛', '天孚通信',
+        '胜宏科技', '沪电股份', '生益科技', '深南电路', '广合科技', 'Surfax', 'Credo', '博通', 'Broadcom',
+        'AVGO', 'Marvell', 'MRVL', '台股', 'ASIC', 'GB200', 'GB300', 'B200', 'B300', 'Vera Rubin',
+        'AI 算力', '算力', 'AI 服务器', 'AI 基础设施', '领创新', '伊之密', '明族', '智同科技', '中航',
+        '算力中心', '互联网数据中心', 'IDC', '智算', '算力网络', '液冷服务器', '英伟达', '戴尔',
+        '超微', 'Supermicro', 'SanDisk', '西部数据', '固态', 'NAND', 'DRAM', '存储芯片',
+        '江波龙', '兆易创新', '龙芯', '铜缆', '高速铜', 'SpeePHY', 'PCIe', '半导体设备', 'ASML', 'LRCX', 'AMAT',
+        'KLA', 'TEL', '东京电子', '光互联', 'COUPE', '玻璃基板'
+    ],
+    '端侧 AI': [
+        'AI 手机', 'AI PC', 'AI 眼镜', 'AR 眼镜', '字节', '豆包', 'DeepSeek', 'Kimi', '清华\n智谱', 'MiniMax',
+        '腾讯', 'WorkBuddy', '联光', '豆包手机', '面壁', '智谱', '手机助手', 'Agent', '智能体', 'AI 助手',
+        '联想', '苹米', 'Apple Intelligence', 'Galaxy AI', 'Gemini Nano', '穿戴', 'AR/VR', '智能眼镜',
+        'AR 头', '元宇宙', 'NPC AI', 'AI 应用', 'AIGC', '多模态', 'LLM 推理', '本地推理', '边计算',
+        'SoC 芯片', '联发科', 'MTK', '高通', 'Qualcomm', 'ARM', '手机芯片', 'AI 应用', 'AINPC', 'PC AI'
+    ],
+    '新能源链': [
+        '光伏', '锂电', '锂电池', '钕电池', '储能', '充电桩', '新能源汽车', '太阳能', '逆变器',
+        '隆基', '通威', '中环', '阳光电源', '锦浪', '固德威', '宁德', 'CATL', '比亚迪', 'BYD',
+        '亿纬锂能', '欣旺达', '枥川股份', '赣锋锂业', '天齐锂业', '升志股份', '唭酒',
+        '多晶硅', '硅片', '电池片', '组件', '风电', '海上风电', '陆上风电', '明阳智能', '金风科技',
+        '氢能', '质子交换膜', 'PEM', '氢燃料', '电堆', '充电柱', '氢能车', '重卡', '绅宝',
+        '甘冶', '欧晶科技', '仪电', '中环装备', '迈为股份', '捷佳伟创', '光伏设备'
+    ],
+    '半导体周期': [
+        '半导体设备', '半导体材料', '刻蚀机', '光刻机', '检测设备', '封测', '完测', 'EDA',
+        '北方华创', '中微公司', '拓荆', '华海涪科', 'CMP 抛光', '上机数控', '长川科技',
+        '沪硅产业', '立昂微', '影东股份', '合晶', '华为哈勃', '卓郎微', '思瑞浦', '明烯微',
+        '明芳微', '士兰微', '扬杰科技', '华微电子', '捷捷微', '充思股份', '中恶集成',
+        '长江存储', '长熹存储', '合肥长熹', 'CxMT', '耶雅方香', '韦尔股份', '豪威',
+        '集创北方', '中革微', '全志科技', '瑞芯微', '梦芯股份'
+    ],
+    '新消费/AI 应用': [
+        '游戏', '游戏公司', '腾讯游戏', '网易', '米哈游', '莉莉丝', '游戏版号', '腾讯云游戏',
+        'AI 教育', '教育', '作业帮', '猿辅导', '中公教育', '高途',
+        '电商', '拼多多', '告多多', '小红书', 'B站', 'BILIBILI', '快手',
+        'AI 广告', 'AI 营销', 'AI 客服', 'AI 提产', '腾讯殷东', '今朝头条',
+        'AI 应用', '智能客服', 'AI 创造', 'AIGC', '周文商业', '周文版权', 'AI 业务'
+    ],
+    '高端制造': [
+        '机器人', '人形机器人', '关节机器人', '机器人减速器', '丝杠', '谐波减速器',
+        '谐波', '智同科技', '伊之密', '东茂集团', '中航高机', '象山传动', '汇川技术',
+        '博众精工', '绿的谐波', '双环传动', '中大力德', '拓普集团', '三花智控',
+        '数控机床', '加工中心', '海天精工', '创盛智能', '国盛智科',
+        '传感器', 'TWS', '麦克韦尔', '奇蛊微', '士兰微',
+        '航发动力', '航发控制', '中国远火', '十所', '民生机械'
+    ],
+    '生物医药': [
+        '创新药', '创新药企业', 'PD-1', 'PD-L1', '以香药', '典以美', '肿瘤药',
+        '恒瑞医药', '百济神州', '百济神洲', '信达生物', '君实生物', '复宏汉霖',
+        '药明康德', '药明生物', '药明合联', 'CXO', 'CRO', 'CMO', '临床试验',
+        '迈瑞医疗', '联影医疗', '鱼跃医疗', '达安基因', '迈克生物',
+        '合成生物', '川宁生物', '金河生物',
+        '药明', '药石', '梴芝药业', '仁东医药', '人工心脏', '脑机接口', '脑机',
+        '脑机接口', '介入器材'
+    ],
+    '周期与宏观': [
+        '黄金', '白银', '黄金股', '山东黄金', '紫金矿业', '中金黄金', '赤峰黄金',
+        '原油', '油价', 'WTI', '布伦特', '中石油', '中石化', '中海油',
+        '天然气', 'LNG', '煤炭', '焦煤', '焦炭', '陕北煤业', '中国神华',
+        '钢铁', '镀锌板', '冷轧', '热轧', '宝钢', '鞍山钢铁', '首钢',
+        '航运', '干散货', '集装箱', '中远海运', '招商轮船', '油运',
+        '汇率', '人民币', '美元', '美元指数', '美债', '10年期', '加息', '降息',
+        '美联储', 'FOMC', '鲍威尔', 'CPI', 'PPI', '非农', 'PCE',
+        '房价', '房地产', '万科', '保利', '中交地产', '碧桂园'
+    ],
+}
+
+
+def _classify_minutes_sector(title: str, content: str = '') -> List[str]:
+    """根据关键词返回所属赛道列表（多标签）"""
+    text = (title + ' ' + (content or ''))[:2000]  # 限长防慢
+    matched = []
+    for sector, keywords in SECTOR_KEYWORDS.items():
+        for kw in keywords:
+            if kw and kw in text:
+                matched.append(sector)
+                break  # 一个赛道命中一次就够
+    return matched if matched else ['周期与宏观']  # 兜底：宏观众赛道
+
+
+def _format_minutes_by_sector(minutes_list: List[Dict], limit_per_sector: int = 15) -> str:
+    """v4.2: 纪要按赛道预分类后输出（每条纪要带赛道标签，AI 看到就知道归到哪）"""
+    if not minutes_list:
+        return '（无机构纪要数据）'
+
+    # Step 1: 给每条纪要打赛道标签
+    categorized = []  # (sector_str, item)
+    for m in minutes_list:
+        title = m.get('title', '').replace('\n', ' ').strip()
+        content = m.get('content', '').replace('\n', ' ').strip()
+        time_str = m.get('time', '')[:16]
+        source = m.get('source_name') or m.get('source_id', '?')
+        sectors = _classify_minutes_sector(title, content)
+        sector_tag = '|'.join(sectors)  # 如「AI 算力链|端侧 AI」
+        # 拼装成一条预分类纪要
+        item_text = f'【{sector_tag}】[{time_str}] [{source}] {title}'
+        if content:
+            content_preview = content[:600].strip()
+            item_text += f'\n  > {content_preview}'
+        categorized.append((sectors[0] if sectors else '周期与宏观', item_text))
+
+    # Step 2: 按赛道分组，按时间倒序（原始顺序已是近→远），每组取前 N
+    from collections import defaultdict
+    grouped = defaultdict(list)
+    for sector, text in categorized:
+        grouped[sector].append(text)
+
+    # Step 3: 输出（按 8 赛道顺序）
+    sector_order = [
+        'AI 算力链', '端侧 AI', '新能源链', '半导体周期',
+        '新消费/AI 应用', '高端制造', '生物医药', '周期与宏观'
+    ]
+    lines = []
+    total_count = 0
+    for sector in sector_order:
+        items = grouped.get(sector, [])[:limit_per_sector]
+        if not items:
+            continue
+        lines.append(f'\n【赛道: {sector}】 ({len(items)} 条)')
+        for i, txt in enumerate(items, 1):
+            lines.append(f'  {i}. {txt}')
+            total_count += 1
+            if total_count >= 120:  # 总上限防爆 token
+                break
+        if total_count >= 120:
+            lines.append('  ... (以下省略)')
+            break
+
+    return '\n'.join(lines) if lines else '（无机构纪要数据）'
+
+
 # ──────────────────────────────
 # Agnes API 调用
 # ──────────────────────────────
@@ -958,9 +1096,13 @@ async def generate_report(
     min_limit = 20 if mode == 'macro' else 100  # depth 优先消化纪要
 
     # 格式化数据
+    # v4.2: depth 模式纪要按赛道预分类后输出（带【赛道】标签 + content 预览）
+    if mode == 'depth':
+        minutes_text = _format_minutes_by_sector(minutes, limit_per_sector=15)
+    else:
+        minutes_text = _format_news(minutes, limit=min_limit)
     domestic_text = _format_news(domestic, limit=dom_limit)
     overseas_text = _format_news(overseas, limit=os_limit)
-    minutes_text = _format_news(minutes, limit=min_limit)
     domestic_platforms = list({x.get('source_id', '') for x in domestic if x.get('source_id')})
 
     # 填充模板
