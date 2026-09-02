@@ -686,9 +686,14 @@ def _fetch_zsxq() -> List[dict]:
                 break
         log.info(f'zsxq 拉取成功: {len(all_topics)} 条')
         # 2026-09-03 v4.4: 调试打印一条 topic 实际字段（部署后看日志）
+        # 2026-09-03 v4.5: 增强打印 owner/group 单独字段（不受 500 字符限制）
         if all_topics and os.getenv('ZSXQ_DEBUG_TOPIC', '1') == '1':
             sample = all_topics[0]
             log.info(f'[zsxq sample topic] keys={list(sample.keys())} sample={str(sample)[:500]}')
+            sample_owner = sample.get('owner')
+            sample_group = sample.get('group')
+            log.info(f'[zsxq sample owner] type={type(sample_owner).__name__} value={str(sample_owner)[:400]}')
+            log.info(f'[zsxq sample group] type={type(sample_group).__name__} value={str(sample_group)[:400]}')
             os.environ['ZSXQ_DEBUG_TOPIC'] = '0'  # 只打一次
         topics = all_topics
         skipped_short = 0
@@ -716,12 +721,21 @@ def _fetch_zsxq() -> List[dict]:
             create_time = t.get('create_time','')
             pub_ts = _parse_iso(create_time)
             topic_id = t.get('topic_id','')
+            # v4.5: 从 topic['owner']['name'] 拿星球所有者昵称（花总账号=基业长青）
+            # topic['owner'] 是 dict {alias/name/user_id/avatar_url}，topic['group'] 是 dict {group_id/name}
+            t_owner = t.get('owner') if isinstance(t.get('owner'), dict) else {}
+            t_group = t.get('group') if isinstance(t.get('group'), dict) else {}
+            owner_name = t_owner.get('name') or ''
+            group_name = t_group.get('name') or ''
             items.append({
                 'id': f'minutes-{topic_id}',
                 'title': title,
                 'pub_ts': pub_ts,
                 'source_id': 'zsxq',
-                'source_name': '机构纪要',
+                'source_name': owner_name or '机构纪要',  # 花总=基业长青（owner.name），fallback 机构纪要
+                'owner_name': owner_name,
+                'group_name': group_name,
+                'group_id': str(t_group.get('group_id') or ZSXQ_GROUP_ID),
                 'source_type': 'minutes',
                 'time': _format_time(pub_ts),
                 'url': f'https://wx.zsxq.com/detailed/{topic_id}',
@@ -761,13 +775,13 @@ class Broadcaster:
 
     async def update(self, snap):
         # 2026-09-01 研算子优化：限制内存占用，512MB 环境避免 OOM
-        # 600 条原始纪要全部加载太耗内存，限制每类最多 200 条
+        # 2026-09-03 v4.5: 200 条足够覆盖最新一天的纪要 + AI 报告采样 8-12 条不会撞天花板
         snap_trimmed = {}
         for k in ('domestic', 'overseas', 'minutes'):
             v = snap.get(k, [])
             if len(v) > 200:
-                # 按 pub_ts 倒序保留最新的 50 条（256MB free tier 内存优化）
-                v = sorted(v, key=lambda x: x.get('pub_ts', 0), reverse=True)[:50]
+                # 按 pub_ts 倒序保留最新的 200 条（覆盖一整天纪要，足够 AI 报告采样）
+                v = sorted(v, key=lambda x: x.get('pub_ts', 0), reverse=True)[:200]
             snap_trimmed[k] = v
         async with self.lock:
             self.snapshot = snap_trimmed
