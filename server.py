@@ -1134,13 +1134,18 @@ async def api_ai_hotspot(force: int = 0):
     return result
 
 @app.get('/api/ai/report')
-async def api_ai_report(force: int = 0):
+async def api_ai_report(force: int = 0, mode: str = 'macro'):
     """
     AI 热点分析完整报告(HTML 页面,嵌入 iframe 用)
     force=1 强制刷新
+    mode='macro' (默认) → v3 宏观信号 (TOP 赛道 + 4 类信号)
+    mode='depth' → v4 行业深度 (按子赛道切分,适合产业链跟踪)
     v4: 加磁盘兜底 (latest.html 24h 内秒返) + 进程内缓存双保险
     """
     from ai_analyzer import generate_report, _CACHE
+
+    if mode not in ('macro', 'depth'):
+        mode = 'macro'
 
     dom = BC.snapshot.get('domestic', [])
     os_ = BC.snapshot.get('overseas', [])
@@ -1148,39 +1153,40 @@ async def api_ai_report(force: int = 0):
 
     # force=1: 忽略所有缓存,直接走 AI
     if force:
-        result = await generate_report(dom, os_, mn, force=True)
+        result = await generate_report(dom, os_, mn, force=True, mode=mode)
         if result.get('success'):
             return HTMLResponse(result['html'], headers={'Content-Type': 'text/html; charset=utf-8'})
         return JSONResponse(result, status_code=500)
 
     # 快速路径1: 进程内缓存命中 (4 小时桶)
-    cache_key = f'report:{len(dom)}:{len(os_)}:{len(mn)}:{int(time.time() // 14400)}'
+    cache_key = f'report:{mode}:{len(dom)}:{len(os_)}:{len(mn)}:{int(time.time() // 14400)}'
     if cache_key in _CACHE:
-        log.info('[jeeseek.api] /api/ai/report 命中进程缓存')
+        log.info(f'[jeeseek.api] /api/ai/report 命中进程缓存 (mode={mode})')
         return HTMLResponse(_CACHE[cache_key]['html'], headers={'Content-Type': 'text/html; charset=utf-8'})
 
     # 快速路径2: 磁盘兜底 (24h 内 latest.html 秒返 + 后台异步刷新)
-    latest = REPORTS_DIR / 'latest.html'
+    latest = REPORTS_DIR / ('latest_depth.html' if mode == 'depth' else 'latest.html')
     if latest.exists():
         age = time.time() - latest.stat().st_mtime
         if age < 86400:
             async def _bg_refresh():
                 try:
-                    await generate_report(dom, os_, mn, force=False)
-                    log.info('[jeeseek.ai] disk-fallback 后台刷新完成')
+                    await generate_report(dom, os_, mn, force=False, mode=mode)
+                    log.info(f'[jeeseek.ai] disk-fallback 后台刷新完成 (mode={mode})')
                 except Exception as e:
-                    log.warning(f'[jeeseek.ai] disk-fallback 后台刷新失败: {e}')
+                    log.warning(f'[jeeseek.ai] disk-fallback 后台刷新失败 (mode={mode}): {e}')
             asyncio.create_task(_bg_refresh())
             html = latest.read_text(encoding='utf-8')
-            log.info(f'[jeeseek.api] /api/ai/report 磁盘兜底 ({int(age)}s 前,后台刷新中)')
+            log.info(f'[jeeseek.api] /api/ai/report 磁盘兜底 (mode={mode}, {int(age)}s 前,后台刷新中)')
             return HTMLResponse(html, headers={
                 'Content-Type': 'text/html; charset=utf-8',
                 'X-Cache': 'disk-fallback',
                 'X-Age-Seconds': str(int(age)),
+                'X-Mode': mode,
             })
 
     # 都 miss: 走 AI (首次或磁盘太旧)
-    result = await generate_report(dom, os_, mn, force=False)
+    result = await generate_report(dom, os_, mn, force=False, mode=mode)
     if result.get('success'):
         return HTMLResponse(result['html'], headers={'Content-Type': 'text/html; charset=utf-8'})
     return JSONResponse(result, status_code=500)

@@ -45,6 +45,11 @@ PROMPT_FILES = [
     Path(__file__).parent / 'ai_hotspot_prompt.txt',     # v1 兜底
 ]
 
+# v4：行业深度报告模式（按子赛道切分，类似花总示例）
+DEPTH_PROMPT_FILES = [
+    Path(__file__).parent / 'ai_depth_prompt_v4.txt',  # 行业深度（首选）
+]
+
 # === 报告输出目录（从环境变量获取，默认 /app/reports 兼容 Fly.io/Koyeb）===
 REPORTS_DIR = Path(os.getenv('REPORTS_DIR', '/app/reports'))
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -146,6 +151,62 @@ class BatchAnalysisResult:
             'catalyst_aging': self.catalyst_aging,
             'disagreement_topics': [asdict(t) for t in self.disagreement_topics],
             'signals': self.signals,
+            'raw_response': self.raw_response,
+            'success': self.success,
+            'error': self.error,
+            'total_news': self.total_news,
+            'domestic_count': self.domestic_count,
+            'overseas_count': self.overseas_count,
+            'minutes_count': self.minutes_count,
+            'model': self.model,
+            'time_str': self.time_str,
+            'version': self.version,
+        }
+
+
+# ──────────────────────────────
+# 数据类 v4：行业深度报告（子赛道切分）
+# ──────────────────────────────
+@dataclass
+class SectorReport:
+    """v4: 子赛道报告"""
+    name: str = ""
+    tagline: str = ""
+    highlights: List[str] = field(default_factory=list)
+    key_data: List[str] = field(default_factory=list)
+    related_companies: List[str] = field(default_factory=list)
+    catalyst_risk: str = ""
+
+
+@dataclass
+class DepthReport:
+    """v4: 行业深度报告 - 按子赛道切分"""
+    title: str = ""
+    sectors: List[SectorReport] = field(default_factory=list)
+    main_lines: List[str] = field(default_factory=list)
+    catalysts_new: List[str] = field(default_factory=list)
+    catalysts_cooling: List[str] = field(default_factory=list)
+    risks: List[str] = field(default_factory=list)
+
+    raw_response: str = ""
+    success: bool = False
+    error: str = ""
+    total_news: int = 0
+    domestic_count: int = 0
+    overseas_count: int = 0
+    minutes_count: int = 0
+    model: str = ""
+    time_str: str = ""
+    version: str = "v4"
+
+    def to_dict(self) -> dict:
+        return {
+            'title': self.title,
+            'sectors': [asdict(s) for s in self.sectors],
+            'main_lines': self.main_lines,
+            'catalysts_new': self.catalysts_new,
+            'catalysts_cooling': self.catalysts_cooling,
+            'risks': self.risks,
             'raw_response': self.raw_response,
             'success': self.success,
             'error': self.error,
@@ -698,30 +759,207 @@ footer {{ text-align: center; color: #94a3b8; font-size: 12px; margin-top: 30px;
 
 
 # ──────────────────────────────
+# v4: 行业深度报告渲染（按子赛道切分）
+# ──────────────────────────────
+def _to_depth_result(data: dict, raw: str, stats: dict, model: str, ts: int) -> DepthReport:
+    result = DepthReport(
+        raw_response=raw,
+        success=True,
+        model=model,
+        time_str=datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'),
+        total_news=stats.get('domestic', 0) + stats.get('overseas', 0) + stats.get('minutes', 0),
+        domestic_count=stats.get('domestic', 0),
+        overseas_count=stats.get('overseas', 0),
+        minutes_count=stats.get('minutes', 0),
+    )
+    result.title = str(data.get('title', '产业链日报'))
+
+    # sectors
+    for s in data.get('sectors', []) or []:
+        if isinstance(s, dict):
+            result.sectors.append(SectorReport(
+                name=str(s.get('name', '')),
+                tagline=str(s.get('tagline', '')),
+                highlights=[str(x) for x in (s.get('highlights', []) or []) if x],
+                key_data=[str(x) for x in (s.get('key_data', []) or []) if x],
+                related_companies=[str(x) for x in (s.get('related_companies', []) or []) if x],
+                catalyst_risk=str(s.get('catalyst_risk', '')),
+            ))
+
+    # overall
+    overall = data.get('overall', {}) or {}
+    result.main_lines = [str(x) for x in (overall.get('main_lines', []) or []) if x]
+    catalysts = overall.get('catalysts', {}) or {}
+    result.catalysts_new = [str(x) for x in (catalysts.get('new', []) or []) if x]
+    result.catalysts_cooling = [str(x) for x in (catalysts.get('cooling', []) or []) if x]
+    result.risks = [str(x) for x in (overall.get('risks', []) or []) if x]
+    return result
+
+
+def _render_depth_html(result: DepthReport) -> str:
+    """v4: 按子赛道渲染 HTML（类似机构日报）"""
+    title = result.title or '产业链日报'
+
+    # 象赛渲染
+    sectors_html_parts = []
+    for i, s in enumerate(result.sectors, 1):
+        highlights_html = ''.join(f'<li>{h}</li>' for h in s.highlights) if s.highlights else '<li>—</li>'
+        data_html = ''.join(f'<li>{d}</li>' for d in s.key_data) if s.key_data else '<li>—</li>'
+        companies_html = ''.join(f'<li>{c}</li>' for c in s.related_companies) if s.related_companies else '<li>—</li>'
+        tagline_html = f' <span style="font-size:13px;color:#64748b;font-weight:400;">· {s.tagline}</span>' if s.tagline else ''
+
+        sectors_html_parts.append(f'''
+<div class="sector">
+  <div class="sector-header">
+    <span class="sector-num">{i}</span>
+    <span class="sector-name">{s.name}</span>{tagline_html}
+  </div>
+  <div class="sector-body">
+    <div class="sector-block">
+      <div class="block-label">【核心要闻】</div>
+      <ol class="block-list">{highlights_html}</ol>
+    </div>
+    <div class="sector-block">
+      <div class="block-label">【关键数据】</div>
+      <ul class="block-list">{data_html}</ul>
+    </div>
+    <div class="sector-block">
+      <div class="block-label">【相关公司】</div>
+      <ul class="block-list companies">{companies_html}</ul>
+    </div>
+    <div class="sector-block catalyst-risk">
+      <div class="block-label">【催化/风险】</div>
+      <div class="block-text">{s.catalyst_risk or '—'}</div>
+    </div>
+  </div>
+</div>''')
+
+    # overall 渲染
+    main_lines_html = ''.join(f'<li>{x}</li>' for x in result.main_lines) if result.main_lines else '<li>—</li>'
+    catalysts_new_html = ''.join(f'<li>{x}</li>' for x in result.catalysts_new) if result.catalysts_new else '<li>—</li>'
+    catalysts_cooling_html = ''.join(f'<li>{x}</li>' for x in result.catalysts_cooling) if result.catalysts_cooling else '<li>—</li>'
+    risks_html = ''.join(f'<li>{x}</li>' for x in result.risks) if result.risks else '<li>—</li>'
+
+    stats_line = f'国内: {result.domestic_count}条 | 海外: {result.overseas_count}条 | 纪要: {result.minutes_count}条 | 总计: {result.total_news}条'
+
+    html = f'''<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{title} - 知几察微</title>
+<style>
+* {{ margin: 0; padding: 0; box-sizing: border-box; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; background: #f8fafc; color: #1f2937; line-height: 1.7; padding: 20px; }}
+.container {{ max-width: 980px; margin: 0 auto; }}
+.header {{ background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 28px 32px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2); }}
+.header h1 {{ font-size: 24px; font-weight: 700; margin-bottom: 8px; }}
+.header .meta {{ font-size: 13px; opacity: 0.9; }}
+.stats {{ background: #ecfdf5; color: #047857; padding: 12px 20px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; }}
+.sector {{ background: white; border-radius: 10px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border-left: 4px solid #059669; }}
+.sector-header {{ background: linear-gradient(90deg, #ecfdf5 0%, #ffffff 100%); padding: 14px 20px; font-size: 17px; color: #047857; font-weight: 600; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 10px; }}
+.sector-num {{ background: #059669; color: white; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }}
+.sector-body {{ padding: 16px 22px; }}
+.sector-block {{ margin-bottom: 14px; }}
+.sector-block:last-child {{ margin-bottom: 0; }}
+.block-label {{ font-size: 13px; color: #047857; font-weight: 600; margin-bottom: 6px; }}
+.block-list {{ margin-left: 0; padding-left: 22px; color: #374151; font-size: 14px; }}
+.block-list li {{ margin-bottom: 4px; }}
+.companies {{ list-style: none; padding-left: 0; display: flex; flex-wrap: wrap; gap: 6px; }}
+.companies li {{ background: #f0fdf4; color: #047857; padding: 3px 10px; border-radius: 12px; font-size: 13px; margin-bottom: 0; }}
+.catalyst-risk .block-text {{ background: #fefce8; padding: 8px 12px; border-radius: 6px; color: #713f12; font-size: 13px; line-height: 1.6; }}
+.overall {{ background: #1e293b; color: #e2e8f0; padding: 24px 28px; border-radius: 10px; margin-bottom: 16px; }}
+.overall h2 {{ font-size: 18px; color: #fbbf24; margin-bottom: 14px; font-weight: 700; }}
+.overall-block {{ margin-bottom: 16px; }}
+.overall-block:last-child {{ margin-bottom: 0; }}
+.overall-block .label {{ color: #fbbf24; font-size: 14px; font-weight: 600; margin-bottom: 6px; }}
+.overall-block ol, .overall-block ul {{ padding-left: 22px; font-size: 13px; color: #cbd5e1; }}
+.overall-block li {{ margin-bottom: 3px; }}
+footer {{ text-align: center; color: #94a3b8; font-size: 12px; margin-top: 30px; padding: 16px; }}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>📊 {title}</h1>
+    <div class="meta">生成时间: {result.time_str} | 模型: {result.model}</div>
+  </div>
+  <div class="stats">📊 {stats_line}</div>
+  {''.join(sectors_html_parts)}
+  <div class="overall">
+    <h2>🎯 当周总结</h2>
+    <div class="overall-block">
+      <div class="label">【主线】</div>
+      <ol>{main_lines_html}</ol>
+    </div>
+    <div class="overall-block">
+      <div class="label">【新增催化】</div>
+      <ol>{catalysts_new_html}</ol>
+    </div>
+    <div class="overall-block">
+      <div class="label">【冷却话题】</div>
+      <ul>{catalysts_cooling_html}</ul>
+    </div>
+    <div class="overall-block">
+      <div class="label">【风险提示】</div>
+      <ol>{risks_html}</ol>
+    </div>
+  </div>
+  <footer>知几察微 · jeeseek.top · v4 行业深度报告</footer>
+</div>
+</body>
+</html>'''
+
+    return html
+
+
+# ──────────────────────────────
 # 主入口：生成报告（自动选择 v1 或 v3 路径）
 # ──────────────────────────────
 async def generate_report(
     domestic: List[Dict],
     overseas: List[Dict],
     minutes: List[Dict],
-    force: bool = False
+    force: bool = False,
+    mode: str = 'macro'  # 'macro' = v3 宏观信号 (默认) | 'depth' = v4 行业深度
 ) -> Dict[str, Any]:
-    """生成 AI 热点分析报告（自动选择 v1/v3 渲染路径）"""
-    cache_key = f'report:{len(domestic)}:{len(overseas)}:{len(minutes)}:{int(time.time() // 14400)}'
+    """生成 AI 热点分析报告
+    mode:
+      - 'macro' (默认)：v3 宏观信号模式，TOP赛道 + 4 类信号
+      - 'depth'：v4 行业深度模式，按子赛道切分
+    """
+    # 不同模式独立缓存
+    cache_key = f'report:{mode}:{len(domestic)}:{len(overseas)}:{len(minutes)}:{int(time.time() // 14400)}'
     if not force and cache_key in _CACHE:
-        log.info('[jeeseek.ai] 命中缓存')
+        log.info(f'[jeeseek.ai] 命中缓存 (mode={mode})')
         return _CACHE[cache_key]
 
-    prompt_text = _load_prompt()
+    # 选择 prompt 文件
+    if mode == 'depth':
+        prompt_text = None
+        for f in DEPTH_PROMPT_FILES:
+            if f.exists():
+                prompt_text = f.read_text(encoding='utf-8')
+                log.info(f'[jeeseek.ai] 使用 depth prompt: {f.name}')
+                break
+        if not prompt_text:
+            prompt_text = _load_prompt()
+    else:
+        prompt_text = _load_prompt()
     if not prompt_text:
         return {'success': False, 'error': 'Prompt 文件未找到'}
 
     system_p, user_tpl = _split_system_user(prompt_text)
 
+    # depth 模式增加纪要额度（重点是机构调研内容）
+    dom_limit = 40 if mode == 'macro' else 30
+    os_limit = 40 if mode == 'macro' else 30
+    min_limit = 20 if mode == 'macro' else 50  # depth 优先消化纪要
+
     # 格式化数据
-    domestic_text = _format_news(domestic, limit=40)
-    overseas_text = _format_news(overseas, limit=40)
-    minutes_text = _format_news(minutes, limit=20)
+    domestic_text = _format_news(domestic, limit=dom_limit)
+    overseas_text = _format_news(overseas, limit=os_limit)
+    minutes_text = _format_news(minutes, limit=min_limit)
     domestic_platforms = list({x.get('source_id', '') for x in domestic if x.get('source_id')})
 
     # 填充模板
@@ -735,20 +973,21 @@ async def generate_report(
     user_p = user_p.replace('{overseas_content}', overseas_text)
     user_p = user_p.replace('{minutes_content}', minutes_text)
 
-    log.info(f'[jeeseek.ai] 生成报告: 国内{len(domestic)} 海外{len(overseas)} 纪要{len(minutes)}')
+    log.info(f'[jeeseek.ai] 生成报告 (mode={mode}): 国内{len(domestic)} 海外{len(overseas)} 纪要{len(minutes)}')
 
-    # 调用 AI
+    # 调用 AI（depth 模式增加超时，因为 token 更多）
     loop = asyncio.get_event_loop()
+    timeout = AGNES_TIMEOUT + (30 if mode == 'depth' else 10)
     try:
         raw = await asyncio.wait_for(
             loop.run_in_executor(None, _call_agnes, system_p, user_p),
-            timeout=AGNES_TIMEOUT + 10
+            timeout=timeout
         )
     except asyncio.TimeoutError:
-        log.error('[jeeseek.ai] 调用超时')
+        log.error(f'[jeeseek.ai] 调用超时 (mode={mode})')
         return {'success': False, 'error': 'LLM 超时'}
     except Exception as e:
-        log.error(f'[jeeseek.ai] 调用失败: {e}')
+        log.error(f'[jeeseek.ai] 调用失败 (mode={mode}): {e}')
         return {'success': False, 'error': str(e)[:200]}
 
     # 解析 JSON
@@ -760,7 +999,53 @@ async def generate_report(
     }
     ts = int(time.time())
 
-    # 自动检测 JSON 结构 → 选择 v3 / v1 路径
+    # depth 模式独立路径
+    if mode == 'depth':
+        is_depth = data and 'sectors' in data and isinstance(data.get('sectors'), list)
+        if is_depth:
+            result = _to_depth_result(data, raw, stats, AGNES_MODEL, ts)
+            html = _render_depth_html(result)
+            log.info(f'[jeeseek.ai] v4 depth 渲染完成，象赛道 {len(result.sectors)} 条')
+        else:
+            # 兑底：渲染失败页面，原始内容存 raw
+            result = DepthReport(
+                raw_response=raw,
+                success=True,
+                title='深度报告解析失败',
+                error=parse_error or 'JSON 字段不匹配',
+                model=AGNES_MODEL,
+                time_str=datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'),
+                total_news=stats['domestic'] + stats['overseas'] + stats['minutes'],
+                domestic_count=stats['domestic'],
+                overseas_count=stats['overseas'],
+                minutes_count=stats['minutes'],
+            )
+            result.sectors.append(SectorReport(
+                name='原始响应（解析失败）',
+                tagline='请刷新重试',
+                highlights=[raw[:3000]],
+            ))
+            html = _render_depth_html(result)
+            log.warning(f'[jeeseek.ai] depth 兑底渲染，error: {parse_error}')
+        output = {
+            'success': True,
+            'html': html,
+            'data': result.to_dict(),
+            'error': result.error if hasattr(result, 'error') else '',
+            'model': result.model,
+            'time_str': result.time_str,
+            'version': result.version,
+            'mode': mode,
+        }
+        _CACHE[cache_key] = output
+        try:
+            report_file = REPORTS_DIR / f'latest_depth.html'
+            report_file.write_text(html, encoding='utf-8')
+        except Exception as e:
+            log.warning(f'[jeeseek.ai] 保存 depth 报告失败: {e}')
+        return output
+
+    # 自动检测 JSON 结构 → 选择 v3 / v1 路径（macro 模式）
     is_v3 = data and 'track_rankings' in data
     is_v1 = data and 'core_trends' in data
 
@@ -802,6 +1087,7 @@ async def generate_report(
         'model': result.model,
         'time_str': result.time_str,
         'version': result.version,
+        'mode': mode,
     }
 
     # 缓存
@@ -814,7 +1100,7 @@ async def generate_report(
     except Exception as e:
         log.warning(f'[jeeseek.ai] 保存报告失败: {e}')
 
-    log.info(f'[jeeseek.ai] 报告生成完成: version={result.version}, success=True')
+    log.info(f'[jeeseek.ai] 报告生成完成: version={result.version}, success=True, mode={mode}')
     return output
 
 

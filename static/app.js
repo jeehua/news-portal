@@ -13,6 +13,46 @@ const STATE = {
 const PAGE_SIZE = 30;        // 纪要每页 30 条
 const SEARCH_DEBOUNCE = 350; // ms
 
+// AI 报告当前模式：'macro' 宏观信号 | 'depth' 行业深度
+let CURRENT_REPORT_MODE = 'macro';
+
+function switchReportMode(mode) {
+  if (mode === CURRENT_REPORT_MODE) return;
+  CURRENT_REPORT_MODE = mode;
+  const macroBtn = $('report-mode-macro');
+  const depthBtn = $('report-mode-depth');
+  if (macroBtn && depthBtn) {
+    if (mode === 'macro') {
+      macroBtn.style.background = '#2563eb';
+      macroBtn.style.color = '#fff';
+      macroBtn.style.borderColor = '#2563eb';
+      depthBtn.style.background = '#fff';
+      depthBtn.style.color = '#475569';
+      depthBtn.style.borderColor = '#cbd5e1';
+    } else {
+      depthBtn.style.background = '#059669';
+      depthBtn.style.color = '#fff';
+      depthBtn.style.borderColor = '#059669';
+      macroBtn.style.background = '#fff';
+      macroBtn.style.color = '#475569';
+      macroBtn.style.borderColor = '#cbd5e1';
+    }
+  }
+  const iframe = $('report-iframe');
+  if (iframe) {
+    iframe.src = `/api/ai/report?mode=${mode}&t=${Date.now()}`;
+    console.log('[switchReportMode]', mode);
+  }
+}
+
+function refreshReportIframe() {
+  const iframe = $('report-iframe');
+  if (iframe) {
+    iframe.src = `/api/ai/report?mode=${CURRENT_REPORT_MODE}&force=1&t=${Date.now()}`;
+    console.log('[refreshReportIframe] mode=' + CURRENT_REPORT_MODE);
+  }
+}
+
 const $ = (id) => document.getElementById(id);
 
 function escHtml(s) {
@@ -401,12 +441,18 @@ function switchTab(tab) {
     
     const iframe = $(iframeId);
     if (iframe) {
-      // 给个 loading 提示，避免用户觉得卡死
-      targetPage.innerHTML = '<div style="padding:60px;text-align:center;color:#64748b;font-size:14px;">⏳ 加载中…</div>' + 
-        `<iframe id="${iframeId}" src="${tab === 'report' ? '/api/ai/report?t=' : '/api/ai/keywords?t='}${Date.now()}" 
-                 style="width:100%;height:calc(100vh - 120px);border:none;display:none;" 
-                 onload="this.style.display='block'; this.parentElement.querySelector('div').style.display='none'; console.log('[iframe] ${tab} loaded');"></iframe>`;
-      console.log('[switchTab] ' + tab + ' iframe loading...');
+      // 仅 keywords 页面重置 innerHTML（里面没有 toolbar）
+      // report 页面顶部有 mode 切换 toolbar，需保留
+      if (tab === 'keywords') {
+        targetPage.innerHTML = '<div style="padding:60px;text-align:center;color:#64748b;font-size:14px;">⏳ 加载中…</div>' +
+          `<iframe id="${iframeId}" src="/api/ai/keywords?t=${Date.now()}"
+                   style="width:100%;height:calc(100vh - 120px);border:none;display:none;"
+                   onload="this.style.display='block'; this.parentElement.querySelector('div').style.display='none'; console.log('[iframe] keywords loaded');"></iframe>`;
+      } else if (tab === 'report') {
+        // report 页面仅刷新 iframe src，不重置 toolbar
+        iframe.src = `/api/ai/report?mode=${CURRENT_REPORT_MODE}&t=${Date.now()}`;
+        console.log('[switchTab] report iframe reload, mode=' + CURRENT_REPORT_MODE);
+      }
     } else {
       console.error('[switchTab] no iframe:', iframeId);
     }
