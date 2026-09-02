@@ -13,7 +13,7 @@ const STATE = {
 const PAGE_SIZE = 30;        // 纪要每页 30 条
 const SEARCH_DEBOUNCE = 350; // ms
 
-// AI 报告当前模式：'macro' 宏观信号 | 'depth' 行业深度
+// AI 报告当前模式：'macro' 宏观信号 | 'depth' 行业跟踪
 let CURRENT_REPORT_MODE = 'macro';
 
 function switchReportMode(mode) {
@@ -51,6 +51,100 @@ function refreshReportIframe() {
     iframe.src = `/api/ai/report?mode=${CURRENT_REPORT_MODE}&force=1&t=${Date.now()}`;
     console.log('[refreshReportIframe] mode=' + CURRENT_REPORT_MODE);
   }
+}
+
+// ────────────────────────────
+// v4.3: 机构纪要查询面板
+// ────────────────────────────
+function toggleMinutesPanel() {
+  const panel = $('minutes-search-panel');
+  if (!panel) return;
+  if (panel.style.display === 'none') {
+    panel.style.display = 'block';
+    setTimeout(() => {
+      const inp = $('minutes-search-input');
+      if (inp) inp.focus();
+    }, 100);
+    console.log('[toggleMinutesPanel] open');
+  } else {
+    panel.style.display = 'none';
+    console.log('[toggleMinutesPanel] close');
+  }
+}
+
+async function doMinutesSearch() {
+  const q = ($('minutes-search-input')?.value || '').trim();
+  const sector = ($('minutes-sector-select')?.value || '').trim();
+  const results = $('minutes-search-results');
+  const stats = $('minutes-search-stats');
+  if (!results) return;
+
+  results.innerHTML = '<div style="color:#94a3b8;font-size:13px;text-align:center;padding:30px 0;">⏳ 查询中...</div>';
+  if (stats) stats.textContent = '';
+
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (sector) params.set('sector', sector);
+  params.set('limit', '50');
+
+  try {
+    const resp = await fetch(`/api/minutes/search?${params}`);
+    const data = await resp.json();
+    renderMinutesResults(data, results, stats, q, sector);
+  } catch (e) {
+    results.innerHTML = `<div style="color:#dc2626;font-size:13px;text-align:center;padding:30px 0;">❌ 查询失败: ${escapeHtml(e.message)}</div>`;
+    console.error('[doMinutesSearch]', e);
+  }
+}
+
+function renderMinutesResults(data, container, statsEl, q, sector) {
+  const items = data.items || [];
+  if (statsEl) {
+    statsEl.textContent = `共 ${data.count} 条 | 关键字: ${q || '—'} | 赛道: ${sector || '全部'}`;
+  }
+
+  if (!items.length) {
+    container.innerHTML = '<div style="color:#94a3b8;font-size:13px;text-align:center;padding:30px 0;">😶 未找到匹配的纪要<br><span style="font-size:11px;">换个关键词或赛道试试</span></div>';
+    return;
+  }
+
+  const html = items.map((it, idx) => {
+    const sectorsHtml = (it.sectors || []).map(s => {
+      const color = s === 'AI 算力链' ? '#2563eb' :
+                    s === '端侧 AI' ? '#7c3aed' :
+                    s === '新能源链' ? '#059669' :
+                    s === '半导体周期' ? '#0891b2' :
+                    s === '新消费/AI 应用' ? '#db2777' :
+                    s === '高端制造' ? '#ea580c' :
+                    s === '生物医药' ? '#be185d' :
+                    '#64748b';
+      return `<span style="display:inline-block;padding:2px 8px;margin-right:4px;background:${color};color:white;border-radius:10px;font-size:11px;">${escapeHtml(s)}</span>`;
+    }).join('');
+
+    const contentHtml = it.content_preview
+      ? `<div style="margin-top:6px;padding:8px 10px;background:#f1f5f9;border-radius:4px;font-size:12px;color:#475569;line-height:1.5;max-height:120px;overflow:hidden;">${escapeHtml(it.content_preview)}${it.content_length > 500 ? '...' : ''}</div>`
+      : '';
+
+    const urlHtml = it.url
+      ? `<a href="${escapeHtml(it.url)}" target="_blank" style="font-size:11px;color:#2563eb;text-decoration:none;margin-left:8px;">查看原文 ↗</a>`
+      : '';
+
+    return `
+<div style="padding:12px;border:1px solid #e2e8f0;border-radius:6px;background:white;margin-bottom:10px;">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+    <span style="font-size:11px;color:#94a3b8;">${escapeHtml(it.time || '')}</span>
+    ${urlHtml}
+  </div>
+  <div style="font-size:13px;color:#1e293b;font-weight:600;line-height:1.5;margin-bottom:4px;">${escapeHtml(it.title || '')}</div>
+  <div style="font-size:11px;color:#64748b;margin-bottom:4px;">📡 ${escapeHtml(it.source_name || '?')}</div>
+  <div style="margin-top:6px;">${sectorsHtml}</div>
+  ${contentHtml}
+</div>`;
+  }).join('');
+
+  container.innerHTML = html + (data.has_more
+    ? `<div style="text-align:center;padding:10px;font-size:12px;color:#94a3b8;">（还有 ${data.count - data.items.length} 条，请缩小范围）</div>`
+    : '');
 }
 
 const $ = (id) => document.getElementById(id);

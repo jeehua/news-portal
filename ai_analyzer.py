@@ -46,9 +46,9 @@ PROMPT_FILES = [
     Path(__file__).parent / 'ai_hotspot_prompt.txt',     # v1 兜底
 ]
 
-# v4：行业深度报告模式（按子赛道切分，类似花总示例）
+# v4：行业跟踪报告模式（按子赛道切分，类似花总示例）
 DEPTH_PROMPT_FILES = [
-    Path(__file__).parent / 'ai_depth_prompt_v4.txt',  # 行业深度（首选）
+    Path(__file__).parent / 'ai_depth_prompt_v4.txt',  # 行业跟踪（首选）
 ]
 
 # === 报告输出目录（从环境变量获取，默认 /app/reports 兼容 Fly.io/Koyeb）===
@@ -166,7 +166,7 @@ class BatchAnalysisResult:
 
 
 # ──────────────────────────────
-# 数据类 v4：行业深度报告（子赛道切分）
+# 数据类 v4：行业跟踪报告（子赛道切分）
 # ──────────────────────────────
 @dataclass
 class SectorReport:
@@ -181,7 +181,7 @@ class SectorReport:
 
 @dataclass
 class DepthReport:
-    """v4: 行业深度报告 - 按子赛道切分"""
+    """v4: 行业跟踪报告 - 按子赛道切分"""
     title: str = ""
     sectors: List[SectorReport] = field(default_factory=list)
     main_lines: List[str] = field(default_factory=list)
@@ -898,7 +898,7 @@ footer {{ text-align: center; color: #94a3b8; font-size: 12px; margin-top: 30px;
 
 
 # ──────────────────────────────
-# v4: 行业深度报告渲染（按子赛道切分）
+# v4: 行业跟踪报告渲染（按子赛道切分）
 # ──────────────────────────────
 def _to_depth_result(data: dict, raw: str, stats: dict, model: str, ts: int) -> DepthReport:
     result = DepthReport(
@@ -1021,7 +1021,7 @@ footer {{ text-align: center; color: #94a3b8; font-size: 12px; margin-top: 30px;
 <div class="container">
   <div class="header">
     <h1>📊 {title}</h1>
-    <div class="meta">生成时间: {result.time_str} | 模型: {result.model}</div>
+    <div class="meta">生成时间: {result.time_str}</div>
   </div>
   <div class="stats">📊 {stats_line}</div>
   {''.join(sectors_html_parts)}
@@ -1044,7 +1044,7 @@ footer {{ text-align: center; color: #94a3b8; font-size: 12px; margin-top: 30px;
       <ol>{risks_html}</ol>
     </div>
   </div>
-  <footer>知几察微 · jeeseek.top · v4 行业深度报告</footer>
+  <footer>知几察微 · jeeseek.top · v4 行业跟踪报告</footer>
 </div>
 </body>
 </html>'''
@@ -1060,12 +1060,12 @@ async def generate_report(
     overseas: List[Dict],
     minutes: List[Dict],
     force: bool = False,
-    mode: str = 'macro'  # 'macro' = v3 宏观信号 (默认) | 'depth' = v4 行业深度
+    mode: str = 'macro'  # 'macro' = v3 宏观信号 (默认) | 'depth' = v4 行业跟踪
 ) -> Dict[str, Any]:
     """生成 AI 热点分析报告
     mode:
       - 'macro' (默认)：v3 宏观信号模式，TOP赛道 + 4 类信号
-      - 'depth'：v4 行业深度模式，按子赛道切分
+      - 'depth'：v4 行业跟踪模式，按子赛道切分
     """
     # 不同模式独立缓存
     cache_key = f'report:{mode}:{len(domestic)}:{len(overseas)}:{len(minutes)}:{int(time.time() // 14400)}'
@@ -1148,7 +1148,7 @@ async def generate_report(
     if mode == 'depth':
         is_depth = data and 'sectors' in data and isinstance(data.get('sectors'), list)
         if is_depth:
-            result = _to_depth_result(data, raw, stats, AGNES_MODEL, ts)
+            result = _to_depth_result(data, raw, stats, '智能分析', ts)
             html = _render_depth_html(result)
             log.info(f'[jeeseek.ai] v4 depth 渲染完成，象赛道 {len(result.sectors)} 条')
         else:
@@ -1158,7 +1158,7 @@ async def generate_report(
                 success=True,
                 title='深度报告解析失败',
                 error=parse_error or 'JSON 字段不匹配',
-                model=AGNES_MODEL,
+                model='智能分析',
                 time_str=datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'),
                 total_news=stats['domestic'] + stats['overseas'] + stats['minutes'],
                 domestic_count=stats['domestic'],
@@ -1195,11 +1195,11 @@ async def generate_report(
     is_v1 = data and 'core_trends' in data
 
     if is_v3:
-        result = _to_batch_result(data, raw, stats, AGNES_MODEL, ts)
+        result = _to_batch_result(data, raw, stats, '智能分析', ts)
         html = _render_batch_html(result)
         log.info(f'[jeeseek.ai] v3 渲染完成，TOP 赛道 {len(result.track_rankings)} 条')
     elif is_v1:
-        result = _to_v1_result(data, raw, stats, AGNES_MODEL, ts)
+        result = _to_v1_result(data, raw, stats, '智能分析', ts)
         html = _render_v1_html(result)
         log.info(f'[jeeseek.ai] v1 渲染完成（兼容模式）')
     else:
@@ -1208,7 +1208,7 @@ async def generate_report(
             raw_response=raw,
             success=True,
             error=parse_error or 'JSON 字段不匹配',
-            model=AGNES_MODEL,
+            model='智能分析',
             time_str=datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'),
             total_news=stats['domestic'] + stats['overseas'] + stats['minutes'],
             domestic_count=stats['domestic'],

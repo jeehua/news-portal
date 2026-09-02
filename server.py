@@ -917,7 +917,8 @@ async def get_news(category: str = Query('domestic', pattern='^(domestic|oversea
         def _match(item):
             title = (item.get('title') or '').lower()
             source_name = (item.get('source_name') or '').lower()
-            return keyword in title or keyword in source_name
+            content = (item.get('content') or '').lower() if category == 'minutes' else ''
+            return keyword in title or keyword in source_name or keyword in content
         data = [x for x in data if _match(x)]
     
     total = len(data)
@@ -1139,7 +1140,7 @@ async def api_ai_report(force: int = 0, mode: str = 'macro'):
     AI 热点分析完整报告(HTML 页面,嵌入 iframe 用)
     force=1 强制刷新
     mode='macro' (默认) → v3 宏观信号 (TOP 赛道 + 4 类信号)
-    mode='depth' → v4 行业深度 (按子赛道切分,适合产业链跟踪)
+    mode='depth' → v4 行业跟踪 (按子赛道切分,适合产业链跟踪)
     v4: 加磁盘兜底 (latest.html 24h 内秒返) + 进程内缓存双保险
     """
     from ai_analyzer import generate_report, _CACHE
@@ -1222,6 +1223,76 @@ async def api_ai_keywords(limit: int = 50):
     all_news = list(dom) + list(os)
     html = render_keywords_html(all_news, limit_per_group=limit)
     return HTMLResponse(html, headers={'Content-Type': 'text/html; charset=utf-8'})
+
+
+@app.get('/api/minutes/search')
+async def api_minutes_search(
+    q: str = Query('', description='搜索关键词（公司名/项目/事件/产品）'),
+    sector: str = Query('', description='赛道筛选（AI 算力链/端侧 AI/...）'),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200)
+):
+    """
+    机构纪要专用搜索 API（v4.3 跟踪模式配套）
+    - q: 关键词，匹配 title + content + source_name（全文模糊）
+    - sector: 赛道筛选（8 个固定赛道之一）
+    - 返回带赛道预分类的纪要列表
+    """
+    from ai_analyzer import _classify_minutes_sector
+
+    all_minutes = BC.snapshot.get('minutes', [])
+    keyword = q.strip().lower() if q else ''
+
+    results = []
+    for m in all_minutes:
+        title = m.get('title', '')
+        content = m.get('content', '')
+        source_name = m.get('source_name', '')
+
+        # 赛道预分类
+        sectors = _classify_minutes_sector(title, content)
+
+        # 赛道过滤
+        if sector and sector not in sectors:
+            continue
+
+        # 关键词过滤（标题或正文）
+        if keyword:
+            text = (title + ' ' + content + ' ' + source_name).lower()
+            if keyword not in text:
+                continue
+
+        # 截取 content 预览（前 500 字）
+        item = {
+            'id': m.get('id', ''),
+            'title': title,
+            'pub_ts': m.get('pub_ts', 0),
+            'time': m.get('time', ''),
+            'source_name': source_name,
+            'source_id': m.get('source_id', ''),
+            'url': m.get('url', ''),
+            'sectors': sectors,
+            'primary_sector': sectors[0] if sectors else '周期与宏观',
+            'content_preview': content[:500] if content else '',
+            'content_length': len(content),
+        }
+        results.append(item)
+
+    total = len(results)
+    items = results[offset:offset + limit]
+
+    return JSONResponse({
+        'category': 'minutes',
+        'q': q,
+        'sector': sector,
+        'count': total,
+        'total': total,
+        'offset': offset,
+        'limit': limit,
+        'has_more': offset + limit < total,
+        'items': items,
+        'ts': int(time.time())
+    })
 
 @app.get('/api/ai/keywords.json')
 async def api_ai_keywords_json(limit: int = 50):
