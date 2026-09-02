@@ -876,52 +876,9 @@ async def on_startup():
             log.warning(f'[jeeseek.startup] AI 报告预热失败: {e}')
     asyncio.create_task(_warmup_ai())
 
-    # v4.4: 35 秒后预热 AI 研判
-    async def _warmup_radar():
-        await asyncio.sleep(35)
-        try:
-            dom = BC.snapshot.get('domestic', [])
-            os_ = BC.snapshot.get('overseas', [])
-            mn = BC.snapshot.get('minutes', [])
-            t0 = time.time()
-            await generate_radar(dom, os_, mn, force=False, _cache=_CACHE, _call_ai_fn=_call_agnes)
-            log.info(f'[jeeseek.startup] AI 研判预热完成 ({time.time()-t0:.1f}s)')
-        except Exception as e:
-            log.warning(f'[jeeseek.startup] AI 研判预热失败: {e}')
-    asyncio.create_task(_warmup_radar())
-
-    # v4.4: 雷达定时任务（每日 4 次: 9:00 / 11:30 / 15:00 / 17:00 Asia/Shanghai）
-    async def _radar_cron():
-        import pytz
-        from datetime import datetime as _dt
-        tz = pytz.timezone('Asia/Shanghai')
-        last_run_slot = None
-        while True:
-            try:
-                now = _dt.now(tz)
-                # 4 个触发点（带 5 分钟容错窗口）
-                for hh, mm in [(9, 0), (11, 30), (15, 0), (17, 0)]:
-                    if now.hour == hh and abs(now.minute - mm) < 3:
-                        slot_key = f'{hh:02d}:{mm:02d}'
-                        if last_run_slot != slot_key:
-                            last_run_slot = slot_key
-                            try:
-                                dom = BC.snapshot.get('domestic', [])
-                                os_ = BC.snapshot.get('overseas', [])
-                                mn = BC.snapshot.get('minutes', [])
-                                log.info(f'[jeeseek.radar] cron 触发 {slot_key}')
-                                t0 = time.time()
-                                await generate_radar(dom, os_, mn, force=True, _cache=_CACHE, _call_ai_fn=_call_agnes)
-                                log.info(f'[jeeseek.radar] cron 完成 ({time.time()-t0:.1f}s)')
-                            except Exception as e:
-                                log.warning(f'[jeeseek.radar] cron 失败: {e}')
-                        break
-                await asyncio.sleep(60)
-            except Exception as e:
-                log.warning(f'[jeeseek.radar] cron 异常: {e}')
-                await asyncio.sleep(60)
-
-    asyncio.create_task(_radar_cron())
+    # v4.4: AI 研判已禁用（Render Free 512MB 跑不动，用户拍板）
+    # 不再启动 _warmup_radar 和 _radar_cron 任务，节省 CPU/内存
+    log.info('[jeeseek.startup] AI 研判已禁用（Render Free 512MB 限制）')
 
 @app.get('/healthz')
 async def healthz():

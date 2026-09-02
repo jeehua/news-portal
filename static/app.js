@@ -667,42 +667,6 @@ async function refreshRadar() {
   await loadRadar(1);
 }
 
-// ──── AI 研判卡片展开/收起 ────
-function toggleRadarCard(cardId) {
-  const card = document.getElementById(cardId);
-  if (!card) return;
-  if (card.classList.contains('collapsed')) {
-    card.classList.remove('collapsed');
-    card.classList.add('expanded');
-  } else {
-    card.classList.add('collapsed');
-    card.classList.remove('expanded');
-  }
-}
-
-function toggleAllRadarCards(expand) {
-  const cards = ['card-main-line', 'card-expectation-up', 'card-expectation-down', 'card-price-divergence'];
-  cards.forEach(id => {
-    const card = document.getElementById(id);
-    if (!card) return;
-    if (expand) {
-      card.classList.remove('collapsed');
-      card.classList.add('expanded');
-    } else {
-      card.classList.add('collapsed');
-      card.classList.remove('expanded');
-    }
-  });
-  // 同时展开/收起主题雷达里所有 <details>
-  const detailsList = document.querySelectorAll('#radar-topic-list details');
-  detailsList.forEach(d => { d.open = expand; });
-}
-
-// 页面加载时默认收起所有 AI 研判卡片
-function collapseAllRadarCards() {
-  toggleAllRadarCards(false);
-}
-
 // ──── 搜索（debounce） ────
 function debounce(fn, delay) {
   let t;
@@ -753,6 +717,5 @@ refreshAll();
 // 兜底轮询（防 SSE 断了）
 setInterval(refreshAll, 60000);
 
-// AI 研判 - 启动时预加载 (不管用户切不切 tab)
-console.log('[startup] loadRadar()');
-loadRadar();
+// AI 研判 - 已关闭 (Render Free 512MB 跑不动, 减少启动内存)
+console.log('[startup] AI 研判已禁用');

@@ -347,7 +347,6 @@ body {
       <button class="main-tab active" onclick="switchTab('feed')">📰 实时推送</button>
                 <button class="main-tab" onclick="switchTab('keywords')">🏷️ 关键词聚合</button>
                 <button class="main-tab" onclick="switchTab('report')">📊 AI完整报告</button>
-      <button class="main-tab" onclick="switchTab('radar')" id="radar-tab">🎯 AI研判</button>
     </div>
   </div>
   <div style="display: flex; align-items: center; gap: 12px;">
@@ -363,65 +362,6 @@ body {
   <span class="announcement-icon">📌</span>
   <div class="announcement-text">
     <strong>声明！该网站开源，只用于做投研学习、消息跟踪，不构成投资建议！</strong>
-  </div>
-</div>
-
-<!-- 实时推送 -->
-<!-- AI 研判页 -->
-<div id="radar-page" style="display:none;padding:16px;max-width:1400px;margin:0 auto;overflow-y:auto;flex:1;min-height:0;">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-    <div style="display:flex;align-items:center;gap:12px;">
-      <span style="font-size:18px;font-weight:600;color:#1f2937;">🎯 AI 研判</span>
-      <span id="radar-updated-at" style="font-size:12px;color:#64748b;"></span>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button onclick="toggleAllRadarCards(true)" class="btn btn-secondary" style="padding:6px 14px;font-size:13px;">🔽 一键展开</button>
-      <button onclick="toggleAllRadarCards(false)" class="btn btn-secondary" style="padding:6px 14px;font-size:13px;">🔼 一键收起</button>
-      <button onclick="refreshRadar()" class="btn btn-secondary" style="padding:6px 14px;font-size:13px;">🔄 刷新</button>
-    </div>
-  </div>
-
-  <!-- 今日 3 句话摘要 -->
-  <div id="radar-ai-status-banner" style="display:none;background:#fef3c7;border-left:4px solid #f59e0b;padding:10px 16px;border-radius:6px;margin-bottom:12px;color:#92400e;font-size:13px;"></div>
-
-  <div id="radar-summary" style="background:#f8fafc;border-left:4px solid #2563eb;padding:16px 20px;border-radius:8px;margin-bottom:16px;line-height:1.8;">
-    <div style="color:#64748b;font-size:13px;margin-bottom:8px;">📌 今日 3 句话</div>
-    <div id="radar-summary-text" style="color:#1f2937;font-size:14px;">加载中...</div>
-  </div>
-
-  <!-- 4 张状态卡 -->
-  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px;">
-    <div id="card-main-line" class="radar-card">
-      <div class="radar-card-header" onclick="toggleRadarCard('card-main-line')">🎯 市场主线 <span class="radar-card-toggle">▶</span></div>
-      <div class="radar-card-title">—</div>
-      <div class="radar-card-tags"></div>
-      <div class="radar-card-evidence"></div>
-      <div class="radar-card-judgment"></div>
-    </div>
-    <div id="card-expectation-up" class="radar-card">
-      <div class="radar-card-header" onclick="toggleRadarCard('card-expectation-up')">📈 预期改善 <span class="radar-card-toggle">▶</span></div>
-      <div class="radar-card-title">—</div>
-      <div class="radar-card-evidence"></div>
-      <div class="radar-card-judgment"></div>
-    </div>
-    <div id="card-expectation-down" class="radar-card">
-      <div class="radar-card-header" onclick="toggleRadarCard('card-expectation-down')">📉 预期恶化 <span class="radar-card-toggle">▶</span></div>
-      <div class="radar-card-title">—</div>
-      <div class="radar-card-evidence"></div>
-      <div class="radar-card-judgment"></div>
-    </div>
-    <div id="card-price-divergence" class="radar-card">
-      <div class="radar-card-header" onclick="toggleRadarCard('card-price-divergence')">⚖️ 新闻-价格背离 <span class="radar-card-toggle">▶</span></div>
-      <div class="radar-card-title">—</div>
-      <div class="radar-card-evidence"></div>
-      <div class="radar-card-judgment"></div>
-    </div>
-  </div>
-
-  <!-- 主题雷达 -->
-  <div style="margin-top:24px;">
-    <div style="font-size:15px;font-weight:600;color:#1f2937;margin-bottom:12px;">📡 主题雷达</div>
-    <div id="radar-topic-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;"></div>
   </div>
 </div>
 
