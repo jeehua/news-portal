@@ -10,7 +10,7 @@ const STATE = {
   },
 };
 
-const PAGE_SIZE = 30;        // 纪要每页 30 条
+const PAGE_SIZE = 50; // 一次加载50条（2026-09-03 v5.3：花总拍50条不卡）        // 纪要每页 30 条
 const SEARCH_DEBOUNCE = 350; // ms
 
 // AI 报告当前模式：'macro' 宏观信号 | 'depth' 行业跟踪
@@ -239,14 +239,14 @@ function _resetMinutes() {
 async function loadMinutesPage(reset = false) {
   if (STATE.minutes.loading) return;
   if (!reset && !STATE.minutes.hasMore) return;
-  
+
   STATE.minutes.loading = true;
   const statusEl = $('minutes-load-status');
   if (statusEl) {
     statusEl.textContent = '加载中…';
     statusEl.classList.add('loading');
   }
-  
+
   try {
     const offset = reset ? 0 : STATE.minutes.rendered;
     const params = new URLSearchParams({
@@ -255,22 +255,22 @@ async function loadMinutesPage(reset = false) {
       limit: String(PAGE_SIZE),
     });
     if (STATE.minutes.search) params.set('q', STATE.minutes.search);
-    
+
     const res = await fetch('/api/news?' + params);
     const data = await res.json();
-    
+
     if (reset) {
       STATE.minutes.items = data.items;
       STATE.minutes.rendered = 0;
       $('institutional-items').innerHTML = '';
-      STATE.minutes.autoFollow = true; // 搜索时也跟随最新
+      STATE.minutes.autoFollow = true;
     } else {
       STATE.minutes.items = STATE.minutes.items.concat(data.items);
     }
-    
+
     STATE.minutes.hasMore = data.has_more;
     renderMinutes();
-    
+
     if (statusEl) {
       if (STATE.minutes.hasMore) {
         statusEl.textContent = `已加载 ${STATE.minutes.rendered}/${data.total} · 下拉加载更多 ↓`;
@@ -291,39 +291,96 @@ async function loadMinutesPage(reset = false) {
   }
 }
 
+// 手动加载下一批（避免 IntersectionObserver 误触发） 2026-09-03 v5.3
+function loadNextMinutesBatch() {
+  if (STATE.minutes.loading) return;
+  if (!STATE.minutes.hasMore) return;
+  const s = STATE.minutes;
+  const total = s.items.length;
+  const nextEnd = Math.min(s.rendered + PAGE_SIZE, total);
+  if (nextEnd <= s.rendered) {
+    s.hasMore = false;
+    const statusEl = $('minutes-load-status');
+    if (statusEl) {
+      statusEl.textContent = `已加载全部 ${total} 条`;
+      statusEl.className = 'load-status end';
+    }
+    return;
+  }
+  renderMinutesBatch(s.rendered, nextEnd);
+  s.rendered = nextEnd;
+  s.hasMore = s.rendered < total;
+  const statusEl = $('minutes-load-status');
+  if (statusEl) {
+    if (s.hasMore) {
+      statusEl.textContent = `已加载 ${s.rendered}/${total} · 点击加载更多 ↓`;
+      statusEl.className = 'load-status';
+    } else {
+      statusEl.textContent = `已加载全部 ${total} 条`;
+      statusEl.className = 'load-status end';
+    }
+  }
+}
+
 function renderMinutes() {
   const s = STATE.minutes;
   const listEl = $('institutional-items');
-  
-  // 增量渲染
-  const to = s.rendered + (STATE.minutes._pendingDelta || 0);
-  if (s.items.length > s.rendered) {
-    const fresh = s.items.slice(s.rendered);
-    fresh.forEach(it => {
-      const div = document.createElement('div');
-      div.className = 'inst-item';
-      div.dataset.id = it.id;
-      div.innerHTML = `
-        <div class="inst-item-title">${highlightTitle(it.title, s.search)}</div>
-        <div class="inst-item-time">${escHtml(it.time || '')}</div>
-      `;
-      div.onclick = () => selectMinute(div, it);
-      listEl.appendChild(div);
-    });
-    s.rendered = s.items.length;
+  // 2026-09-03 v5.3：首次只渲染 PAGE_SIZE 条，避免 550 条 DOM 一次性渲染卡死
+  if (s.items.length > 0 && s.rendered === 0) {
+    renderMinutesBatch(0, Math.min(PAGE_SIZE, s.items.length));
+    s.rendered = Math.min(PAGE_SIZE, s.items.length);
+    s.hasMore = s.rendered < s.items.length;
   }
-  
   $('institutional-count').textContent = `(${s.items.length})`;
-  
-  // 自动跟随最新（选最后一条）
-  if (s.autoFollow && s.items.length > 0) {
-    const lastItem = listEl.querySelector('.inst-item:last-child');
-    if (lastItem) {
-      const id = lastItem.dataset.id;
-      s.selectedId = id;
-      listEl.querySelectorAll('.inst-item').forEach(el => el.classList.toggle('active', el.dataset.id === id));
-      renderMinuteDetail(id);
+  const statusEl = $('minutes-load-status');
+  if (statusEl) {
+    if (s.hasMore) {
+      statusEl.textContent = `已加载 ${s.rendered}/${s.items.length} · 点击加载更多 ↓`;
+      statusEl.className = 'load-status';
+    } else {
+      statusEl.textContent = `已加载全部 ${s.items.length} 条`;
+      statusEl.className = 'load-status end';
     }
+  }
+  // 自动跟随最新（选第一条 = 最新）
+  if (s.autoFollow && s.items.length > 0) {
+    const latestItem = s.items[0];
+    if (latestItem) {
+      s.selectedId = latestItem.id;
+      const itemEl = listEl.querySelector(`.inst-item[data-id="${latestItem.id}"]`);
+      if (itemEl) {
+        listEl.querySelectorAll('.inst-item').forEach(el => el.classList.remove('active'));
+        itemEl.classList.add('active');
+        renderMinuteDetail(latestItem.id);
+      }
+    }
+  }
+  _setupMinutesSentinel();
+}
+
+// 增量渲染 [from, to) 范围 2026-09-03 v5.3
+function renderMinutesBatch(from, to) {
+  const s = STATE.minutes;
+  const listEl = $('institutional-items');
+  const frag = document.createDocumentFragment();
+  for (let i = from; i < to; i++) {
+    const it = s.items[i];
+    if (!it) continue;
+    const div = document.createElement('div');
+    div.className = 'inst-item';
+    div.dataset.id = it.id;
+    div.innerHTML = `
+      <div class="inst-item-title">${highlightTitle(it.title, s.search)}</div>
+      <div class="inst-item-time">${escHtml(it.time || '')}</div>
+    `;
+    div.onclick = () => selectMinute(div, it);
+    frag.appendChild(div);
+  }
+  // 插入到 sentinel 之前
+  if (minutesSentinel && minutesSentinel.parentNode === listEl) {
+    listEl.insertBefore(frag, minutesSentinel);
+  } else {
+    listEl.appendChild(frag);
   }
 }
 
@@ -396,44 +453,13 @@ function applyUpdate(data) {
     renderList('overseas');
   }
   if (data.minutes) {
-    // 后端推送的全量分钟数 → 重置后只显示第一页（除非搜索中）
+    // 后端推送的全量分钟数 → 重置后只显示第一页（除非搜索中） 2026-09-03 v5.3: 真分批渲染
     if (!STATE.minutes.search) {
       STATE.minutes.items = data.minutes;
-      STATE.minutes.rendered = Math.min(data.minutes.length, PAGE_SIZE);
-      $('institutional-items').innerHTML = '';
-      // 增量渲染前 PAGE_SIZE 条
-      const first = data.minutes.slice(0, STATE.minutes.rendered);
-      first.forEach(it => {
-        const div = document.createElement('div');
-        div.className = 'inst-item';
-        div.dataset.id = it.id;
-        div.innerHTML = `
-          <div class="inst-item-title">${highlightTitle(it.title, '')}</div>
-          <div class="inst-item-time">${escHtml(it.time || '')}</div>
-        `;
-        div.onclick = () => selectMinute(div, it);
-        $('institutional-items').appendChild(div);
-      });
+      STATE.minutes.rendered = 0;
       STATE.minutes.hasMore = data.minutes.length > PAGE_SIZE;
-      $('institutional-count').textContent = `(${data.minutes.length})`;
-      const statusEl = $('minutes-load-status');
-      if (statusEl) {
-        statusEl.textContent = STATE.minutes.hasMore ? `已加载 ${STATE.minutes.rendered}/${data.minutes.length} · 下拉加载更多 ↓` : `已加载全部 ${data.minutes.length} 条`;
-        statusEl.className = STATE.minutes.hasMore ? 'load-status' : 'load-status end';
-      }
-      // 自动跟随（选中最新——数据的第一条，不是显示的最后一行）
-      if (STATE.minutes.autoFollow && first.length > 0) {
-        // 数据按时间倒序，第一条是最新的
-        const latestItem = STATE.minutes.items[0];
-        if (latestItem) {
-          STATE.minutes.selectedId = latestItem.id;
-          // 高亮最新项（如果当前可见）
-          const itemEl = $('institutional-items').querySelector(`.inst-item[data-id="${latestItem.id}"]`);
-          if (itemEl) itemEl.classList.add('active');
-          renderMinuteDetail(latestItem.id);
-        }
-      }
-      _setupMinutesSentinel();
+      $('institutional-items').innerHTML = '';
+      renderMinutes(); // 内部会调 renderMinutesBatch(0, PAGE_SIZE)
     }
   }
   $('last-update').textContent = `最后更新: ${new Date().toLocaleTimeString('zh-CN')}`;

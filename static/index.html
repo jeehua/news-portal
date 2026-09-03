@@ -432,7 +432,7 @@ body {
       </div>
       <div class="inst-search-row">
         <input type="search" id="minutes-search" class="feed-search" placeholder="🔍 搜索标题…" />
-        <span id="minutes-load-status" class="load-status">下拉加载更多 ↓</span>
+        <span id="minutes-load-status" class="load-status" onclick="loadNextMinutesBatch()" style="cursor: pointer; user-select: none;">下拉加载更多 ↓</span>
       </div>
       <div id="institutional-items" style="flex: 1; overflow-y: auto;">
         <div class="empty-state">加载机构纪要...</div>
