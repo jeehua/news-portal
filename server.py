@@ -775,13 +775,13 @@ class Broadcaster:
 
     async def update(self, snap):
         # 2026-09-01 研算子优化：限制内存占用，512MB 环境避免 OOM
-        # 2026-09-03 v4.5: 200 条足够覆盖最新一天的纪要 + AI 报告采样 8-12 条不会撞天花板
+        # 2026-09-03 v5: 1000 条覆盖全天纪要（每天约 200-500 条），内存 1000*2KB≈2MB 可控
         snap_trimmed = {}
         for k in ('domestic', 'overseas', 'minutes'):
             v = snap.get(k, [])
-            if len(v) > 200:
-                # 按 pub_ts 倒序保留最新的 200 条（覆盖一整天纪要，足够 AI 报告采样）
-                v = sorted(v, key=lambda x: x.get('pub_ts', 0), reverse=True)[:200]
+            if len(v) > 1000:
+                # 按 pub_ts 倒序保留最新的 1000 条（覆盖 2-3 天全天，足够 AI 报告采样 8-12 条）
+                v = sorted(v, key=lambda x: x.get('pub_ts', 0), reverse=True)[:1000]
             snap_trimmed[k] = v
         async with self.lock:
             self.snapshot = snap_trimmed

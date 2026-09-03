@@ -1152,7 +1152,7 @@ def _render_depth_html(result: DepthReport) -> str:
                         src = km.get('source', '')
                         time = km.get('time', '')
                         summary = km.get('summary', '')
-                        meta = f'[{src}'
+                        meta = '[机构纪要·' if not src else f'[{src}'
                         if time:
                             meta += f'·{time}'
                         meta += ']'
