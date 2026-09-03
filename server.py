@@ -1309,6 +1309,10 @@ async def api_minutes_search(
             'source_name': source_name,
             'source_id': m.get('source_id', ''),
             'url': m.get('url', ''),
+            # v4.5.1: 透传 owner_name / group_name / group_id（让前端能按群筛）
+            'owner_name': m.get('owner_name', ''),
+            'group_name': m.get('group_name', ''),
+            'group_id': m.get('group_id', ''),
             'sectors': sectors,
             'primary_sector': sectors[0] if sectors else '周期与宏观',
             'content_preview': content[:500] if content else '',
