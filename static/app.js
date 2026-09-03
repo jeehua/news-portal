@@ -48,10 +48,73 @@ function switchReportMode(mode) {
 function refreshReportIframe() {
   const iframe = $('report-iframe');
   if (iframe) {
-    iframe.src = `/api/ai/report?mode=${CURRENT_REPORT_MODE}&force=1&t=${Date.now()}`;
-    console.log('[refreshReportIframe] mode=' + CURRENT_REPORT_MODE);
+    const mode = CURRENT_REPORT_MODE;
+    const startedAt = Date.now();
+    // v5.3c: 加 loading 遮罩，让花总知道“正在跑”而不是“没有反应”
+    showReportLoading(mode);
+    iframe.src = `/api/ai/report?mode=${mode}&force=1&t=${startedAt}`;
+    console.log('[refreshReportIframe] mode=' + mode);
   }
 }
+
+function showReportLoading(mode) {
+  const iframe = $('report-iframe');
+  if (!iframe) return;
+  const container = iframe.parentElement;
+  let overlay = $('report-loading-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'report-loading-overlay';
+    overlay.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;font-size:14px;color:#475569;';
+    overlay.innerHTML = `
+      <div style="font-size:48px;margin-bottom:16px;animation:spin 1.2s linear infinite;">⏳</div>
+      <div style="font-weight:600;font-size:16px;color:#1e293b;margin-bottom:6px;">⏳ AI 正在生成深度报告...</div>
+      <div style="color:#64748b;font-size:13px;">v5 三层嵌套 · 预计需要 60-120 秒</div>
+      <div style="color:#94a3b8;font-size:12px;margin-top:12px;" id="report-loading-tips">不要关闭页面</div>
+    `;
+    if (getComputedStyle(container).position === 'static') {
+      container.style.position = 'relative';
+    }
+    container.appendChild(overlay);
+  }
+  overlay.style.display = 'flex';
+  // 进度提示
+  const tips = $('report-loading-tips');
+  const tickMs = 15000;
+  const startedAt = Date.now();
+  if (tips) {
+    tips.textContent = '已等待 0 秒';
+    if (window.__reportLoadingInterval) clearInterval(window.__reportLoadingInterval);
+    window.__reportLoadingInterval = setInterval(() => {
+      const sec = Math.floor((Date.now() - startedAt) / 1000);
+      tips.textContent = sec < 30
+        ? `已等待 ${sec} 秒 · AI 思考中...`
+        : sec < 60
+        ? `已等待 ${sec} 秒 · AI 准备输出 JSON...`
+        : `已等待 ${sec} 秒 · 渲染 HTML 中...`;
+    }, tickMs);
+  }
+}
+
+function hideReportLoading() {
+  const overlay = $('report-loading-overlay');
+  if (overlay) overlay.style.display = 'none';
+  if (window.__reportLoadingInterval) {
+    clearInterval(window.__reportLoadingInterval);
+    window.__reportLoadingInterval = null;
+  }
+}
+
+// iframe 加载完成自动隐藏 overlay
+document.addEventListener('DOMContentLoaded', () => {
+  const iframe = $('report-iframe');
+  if (iframe) {
+    iframe.addEventListener('load', () => {
+      hideReportLoading();
+      console.log('[report-iframe] loaded, hide overlay');
+    });
+  }
+});
 
 // ────────────────────────────
 // v4.3: 机构纪要查询面板
