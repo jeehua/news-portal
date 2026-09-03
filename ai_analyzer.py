@@ -23,6 +23,26 @@ import openai
 
 log = logging.getLogger('jeeseek.ai')
 
+# v5.3: 来源黑名单（不暴露任何知识星球博主名/星球名/群名）
+SRC_BLOCKLIST = (
+    '基业长青', '短评&信息', '可接ai', '每日上扬', 'Mr.S', 'Max',
+    '群主', '星球', '主理人', '老师',
+)
+
+def _clean_source(src: str) -> str:
+    """过滤博主名/星球名，空字符串或黑名单命中都返回空（前端会显示「机构纪要」）"""
+    if not src:
+        return ''
+    s = str(src).strip()
+    if not s:
+        return ''
+    if any(b in s for b in SRC_BLOCKLIST):
+        return ''
+    # 过滤纯"博主昵称"形式（不含机构/媒体关键词的短字符串）
+    if len(s) <= 8 and not any(k in s for k in ('机构', '纪要', '财经', '证券', '新闻', '社', '研', '资讯', '报道')):
+        return ''
+    return s
+
 # === 配置 ===
 def _load_agnes_key():
     key = os.getenv('AGNES_API_KEY')
@@ -1152,9 +1172,12 @@ def _render_depth_html(result: DepthReport) -> str:
                         src = km.get('source', '')
                         time = km.get('time', '')
                         summary = km.get('summary', '')
-                        meta = '[机构纪要·' if not src else f'[{src}'
+                        # v5.3: 硬过滤博主名/星球名（花总拍：不要暴露来源）
+                        # 即使 AI 输出基业长青等名字，也强制替换为空走「机构纪要」分支
+                        src = _clean_source(src)
+                        meta = '[机构纪要' if not src else f'[{src}'
                         if time:
-                            meta += f'·{time}'
+                            meta += f'·{time}' if src else f'·{time}'
                         meta += ']'
                         minutes_items.append(f'<li><span class="km-meta">{meta}</span> <span class="km-summary">{summary}</span></li>')
                     minutes_html = ''.join(minutes_items)
