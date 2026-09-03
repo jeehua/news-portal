@@ -48,7 +48,10 @@ PROMPT_FILES = [
 
 # v4：行业跟踪报告模式（按子赛道切分，类似花总示例）
 DEPTH_PROMPT_FILES = [
-    Path(__file__).parent / 'ai_depth_prompt_v4.txt',  # 行业跟踪（首选）
+    # v5 优先（板块→子赛道→纪要三层结构，金红主题）
+    Path(__file__).parent / 'ai_depth_prompt_v5.txt',
+    # v4 fallback（按 8 大赛道平铺，绿色主题）
+    Path(__file__).parent / 'ai_depth_prompt_v4.txt',
 ]
 
 # === 报告输出目录（从环境变量获取，默认 /app/reports 兼容 Fly.io/Koyeb）===
@@ -169,10 +172,24 @@ class BatchAnalysisResult:
 # 数据类 v4：行业跟踪报告（子赛道切分）
 # ──────────────────────────────
 @dataclass
-class SectorReport:
-    """v4: 子赛道报告"""
+class SubSectorReport:
+    """v5: 子赛道报告（板块下的二级细分）"""
     name: str = ""
     tagline: str = ""
+    highlights: List[str] = field(default_factory=list)
+    key_minutes: List[Dict] = field(default_factory=list)  # [{source, time, summary}]
+    key_data: List[str] = field(default_factory=list)
+    related_companies: List[str] = field(default_factory=list)
+    catalyst_risk: str = ""
+
+
+@dataclass
+class SectorReport:
+    """v5: 板块报告（包含多个子赛道）"""
+    name: str = ""
+    tagline: str = ""
+    sub_sectors: List[SubSectorReport] = field(default_factory=list)
+    # 兼容 v4：板块级汇总（可选，v5 可不用）
     highlights: List[str] = field(default_factory=list)
     key_data: List[str] = field(default_factory=list)
     related_companies: List[str] = field(default_factory=list)
@@ -353,7 +370,10 @@ def _classify_minutes_sector(title: str, content: str = '') -> List[str]:
 
 
 def _format_minutes_by_sector(minutes_list: List[Dict], limit_per_sector: int = 15) -> str:
-    """v4.2: 纪要按赛道预分类后输出（每条纪要带赛道标签，AI 看到就知道归到哪）"""
+    """v4.2: 纪要按赛道预分类后输出（每条纪要带赛道标签，AI 看到就知道归到哪）
+
+    v5 兼容版：保留作为 fallback，v5 主路径用 _format_minutes_by_sub_sector
+    """
     if not minutes_list:
         return '（无机构纪要数据）'
 
@@ -399,6 +419,154 @@ def _format_minutes_by_sector(minutes_list: List[Dict], limit_per_sector: int = 
         if total_count >= 120:
             lines.append('  ... (以下省略)')
             break
+
+    return '\n'.join(lines) if lines else '（无机构纪要数据）'
+
+
+# ───────────────────────────────────────────────
+# v5: 板块 → 子赛道 二级分类词典
+# ───────────────────────────────────────────────
+SECTOR_HIERARCHY = {
+    'AI 算力链': {
+        'sub_sectors': {
+            '液冷': ['液冷', '冷板', '浸没', '英维克', '曙光数创', '飞龙', '散热', '热管理', '冷板式', '浸没式', '液冷服务器', '飞龙股份'],
+            'PCB/IC载板': ['PCB', '深南电路', '沪电股份', '胜宏科技', '广合科技', 'CCL', '玻璃基板', 'IC 载板', '覆铜板', 'TGV'],
+            '光模块/CPO': ['光模块', '光通信', 'CPO', '中际旭创', '新易盛', '天孚通信', 'Credo', 'COUPE', '硅光子', '800G', '1.6T', '光互联', '硅光'],
+            'GPU/算力': ['GPU', 'HBM', '英伟达', 'NV', 'AMD', '博通', 'Broadcom', 'Marvell', 'AI 算力', '智算', '算力中心', '数据中心', 'Vera Rubin', 'GB200', 'GB300', 'B200', 'B300'],
+            '服务器/电源': ['服务器', '电源', 'AI 服务器', '机柜', 'PSU'],
+            '存储芯片': ['SanDisk', '西部数据', '固态', 'NAND', 'DRAM', '存储芯片', '江波龙', '兆易创新', 'DDR5'],
+            '半导体设备': ['半导体设备', 'ASML', 'LRCX', 'AMAT', 'KLA', 'TEL', '东京电子', '北方华创', '中微', '刻蚀机', '光刻机', '拓荆', '华海清科'],
+        }
+    },
+    '端侧 AI': {
+        'sub_sectors': {
+            'AI 手机': ['AI 手机', '豆包手机', '字节手机', '苹果', 'Apple Intelligence', '华为', 'OPPO', 'Vivo', '小米', 'Galaxy AI', 'Gemini Nano'],
+            'AI PC/眼镜': ['AI PC', 'AI 眼镜', 'AR 眼镜', '联想', '苹果 PC', '穿戴', 'AR/VR', '智能眼镜', 'AR 头', '元宇宙'],
+            'Agent/应用': ['Agent', '智能体', '豆包', 'DeepSeek', 'Kimi', '智谱', '腾讯混元', 'LLM', '大模型', 'AI 应用', 'AIGC', '多模态', 'AI 助手', 'AINPC', 'NPC AI'],
+            'SoC 芯片': ['SoC 芯片', '联发科', 'MTK', '高通', 'Qualcomm', 'ARM', '手机芯片', 'PC 芯片'],
+        }
+    },
+    '新能源链': {
+        'sub_sectors': {
+            '光伏': ['光伏', '太阳能', '隆基', '通威', '中环', '多晶硅', '硅片', '电池片', '组件', '逆变器', '迈为', '捷佳伟创', '光伏设备'],
+            '锂电/储能': ['锂电', '锂电池', '钕电池', '储能', '充电桩', '宁德', 'CATL', '比亚迪', 'BYD', '亿纬锂能', '欣旺达', '赣锋', '天齐'],
+            '风电/氢能': ['风电', '海上风电', '陆上风电', '明阳智能', '金风科技', '氢能', '质子交换膜', 'PEM', '氢燃料', '电堆'],
+            '新能源车': ['新能源汽车', '整车', '理想', '蔚来', '小鹏', '问界', '智能驾驶', '自动驾驶', 'Tesla', '特斯拉'],
+        }
+    },
+    '半导体周期': {
+        'sub_sectors': {
+            '设备/材料': ['半导体设备', '半导体材料', '刻蚀机', '光刻机', '检测设备', '北方华创', '中微公司', '拓荆', '华海清科', 'CMP 抛光', '上海新阳', 'EDA'],
+            '封测': ['封测', '完测', '长川科技', '精测电子', '华峰测控'],
+            '国产存储': ['长江存储', '长鑫存储', '合肥长鑫', 'CxMT', '兆易创新', '北京君正'],
+            'IC 设计': ['韦尔股份', '豪威', '集创北方', '中革微', '全志科技', '瑞芯微', '梦芯股份', '卓胜微', '思瑞浦'],
+        }
+    },
+    '新消费/AI 应用': {
+        'sub_sectors': {
+            '游戏': ['游戏', '腾讯游戏', '网易', '米哈游', '莉莉丝', '游戏版号', '腾讯云游戏', 'AI NPC', 'AIGC'],
+            '电商/广告': ['电商', '拼多多', '小红书', 'B站', 'BILIBILI', '快手', 'AI 广告', 'AI 营销', '抖音电商'],
+            '教育/SaaS': ['AI 教育', '教育', '作业帮', '猿辅导', '中公教育', '高途', 'SaaS', 'AI 客服', '智能客服'],
+        }
+    },
+    '高端制造': {
+        'sub_sectors': {
+            '人形机器人': ['人形机器人', '机器人减速器', '丝杠', '谐波减速器', '谐波', '智同科技', '绿的谐波', '双环传动', '中大力德', '拓普集团', '三花智控', '关节机器人'],
+            '数控机床/工业母机': ['数控机床', '加工中心', '海天精工', '创盛智能', '国盛智科', '工业母机'],
+            '传感器/军工': ['传感器', '航发动力', '航发控制', '中国远火', '十所', '民生机械', '军工', '无人机'],
+        }
+    },
+    '生物医药': {
+        'sub_sectors': {
+            '创新药': ['创新药', 'PD-1', 'PD-L1', 'ADC', 'GLP-1', '肿瘤药', '恒瑞医药', '百济神州', '信达生物', '君实生物', '复宏汉霖'],
+            'CXO/CRO': ['药明康德', '药明生物', '药明合联', 'CXO', 'CRO', 'CMO', '临床试验', '药石', '康龙化成'],
+            '医疗器械/合成生物': ['迈瑞医疗', '联影医疗', '鱼跃医疗', '合成生物', '川宁生物', '脑机接口', '介入器材', '人工心脏'],
+        }
+    },
+    '周期与宏观': {
+        'sub_sectors': {
+            '贵金属/有色': ['黄金', '白银', '黄金股', '山东黄金', '紫金矿业', '中金黄金', '赤峰黄金', '有色', '铜', '铝'],
+            '原油/煤炭': ['原油', '油价', 'WTI', '布伦特', '中石油', '中石化', '中海油', '天然气', 'LNG', '煤炭', '焦煤', '焦炭', '陕北煤业', '中国神华'],
+            '钢铁/航运': ['钢铁', '镀锌板', '冷轧', '热轧', '宝钢', '鞍山钢铁', '首钢', '航运', '干散货', '集装箱', '中远海运', '招商轮船'],
+            '宏观/汇率/利率': ['汇率', '人民币', '美元', '美元指数', '美债', '10年期', '加息', '降息', '美联储', 'FOMC', '鲍威尔', 'CPI', 'PPI', '非农', 'PCE'],
+            '房地产': ['房价', '房地产', '万科', '保利', '中交地产', '碧桂园'],
+        }
+    },
+}
+
+
+def _classify_minutes_sub_sectors(title: str, content: str = '') -> List[Dict[str, str]]:
+    """v5: 返回纪要的二级分类 [(板块, 子赛道), ...]，可多标签
+
+    Returns: [{'board': 'AI 算力链', 'sub': '液冷'}, ...]
+    """
+    text = (title + ' ' + (content or ''))[:2000]
+    matches = []
+    seen_pairs = set()
+    for board, info in SECTOR_HIERARCHY.items():
+        for sub_name, keywords in info['sub_sectors'].items():
+            for kw in keywords:
+                if kw and kw in text:
+                    pair = (board, sub_name)
+                    if pair not in seen_pairs:
+                        matches.append({'board': board, 'sub': sub_name})
+                        seen_pairs.add(pair)
+                    break  # 一个子赛道命中一次就够
+    return matches if matches else [{'board': '周期与宏观', 'sub': '宏观/汇率/利率'}]
+
+
+def _format_minutes_by_sub_sector(minutes_list: List[Dict], limit_per_sub: int = 8) -> str:
+    """v5: 纪要按 板块 → 子赛道 二级分组后输出
+
+    每条纪要带【板块 / 子赛道】标签，AI 看到就知道归到哪。
+    """
+    if not minutes_list:
+        return '（无机构纪要数据）'
+
+    from collections import defaultdict
+    grouped = defaultdict(lambda: defaultdict(list))  # {board: {sub: [item_text]}}
+
+    for m in minutes_list:
+        title = m.get('title', '').replace('\n', ' ').strip()
+        content = m.get('content', '').replace('\n', ' ').strip()
+        time_str = m.get('time', '')[:16]
+        source = m.get('source_name') or m.get('source_id', '?')
+        matches = _classify_minutes_sub_sectors(title, content)
+        for m_pair in matches:
+            board = m_pair['board']
+            sub = m_pair['sub']
+            item_text = f'【{board}/{sub}】[{time_str}] [{source}] {title}'
+            if content:
+                content_preview = content[:500].strip()
+                item_text += f'\n  > {content_preview}'
+            grouped[board][sub].append(item_text)
+
+    # 按 8 个板块顺序输出
+    board_order = [
+        'AI 算力链', '端侧 AI', '新能源链', '半导体周期',
+        '新消费/AI 应用', '高端制造', '生物医药', '周期与宏观'
+    ]
+    lines = []
+    total_count = 0
+    MAX_TOTAL = 120  # 总上限防爆 token
+
+    for board in board_order:
+        subs = grouped.get(board, {})
+        if not subs:
+            continue
+        lines.append(f'\n## 板块：{board}（{sum(len(v) for v in subs.values())} 条纪要）')
+        # 子赛道按纪要数量倒序
+        for sub_name in sorted(subs.keys(), key=lambda k: len(subs[k]), reverse=True):
+            items = subs[sub_name][:limit_per_sub]
+            if not items:
+                continue
+            lines.append(f'\n### 子赛道：{sub_name}（{len(items)} 条）')
+            for i, txt in enumerate(items, 1):
+                lines.append(f'  {i}. {txt}')
+                total_count += 1
+                if total_count >= MAX_TOTAL:
+                    lines.append('  ... (以下省略)')
+                    return '\n'.join(lines)
 
     return '\n'.join(lines) if lines else '（无机构纪要数据）'
 
@@ -911,19 +1079,44 @@ def _to_depth_result(data: dict, raw: str, stats: dict, model: str, ts: int) -> 
         overseas_count=stats.get('overseas', 0),
         minutes_count=stats.get('minutes', 0),
     )
+    result.version = 'v5' if any(s.get('sub_sectors') for s in (data.get('sectors') or []) if isinstance(s, dict)) else 'v4'
     result.title = str(data.get('title', '产业链日报'))
 
-    # sectors
+    # sectors (v5: 含 sub_sectors；v4: 仅板块级字段)
     for s in data.get('sectors', []) or []:
         if isinstance(s, dict):
-            result.sectors.append(SectorReport(
+            sec = SectorReport(
                 name=str(s.get('name', '')),
                 tagline=str(s.get('tagline', '')),
                 highlights=[str(x) for x in (s.get('highlights', []) or []) if x],
                 key_data=[str(x) for x in (s.get('key_data', []) or []) if x],
                 related_companies=[str(x) for x in (s.get('related_companies', []) or []) if x],
                 catalyst_risk=str(s.get('catalyst_risk', '')),
-            ))
+            )
+            # v5: 解析 sub_sectors（含 key_minutes）
+            for sub in (s.get('sub_sectors', []) or []):
+                if isinstance(sub, dict):
+                    key_minutes = []
+                    for km in (sub.get('key_minutes', []) or []):
+                        if isinstance(km, dict):
+                            key_minutes.append({
+                                'source': str(km.get('source', '')),
+                                'time': str(km.get('time', '')),
+                                'summary': str(km.get('summary', '')).strip(),
+                            })
+                        elif isinstance(km, str) and km.strip():
+                            # 兼容: 字符串列表 "▶ [source·time] summary"
+                            key_minutes.append({'source': '', 'time': '', 'summary': km.strip()})
+                    sec.sub_sectors.append(SubSectorReport(
+                        name=str(sub.get('name', '')),
+                        tagline=str(sub.get('tagline', '')),
+                        highlights=[str(x) for x in (sub.get('highlights', []) or []) if x],
+                        key_minutes=key_minutes,
+                        key_data=[str(x) for x in (sub.get('key_data', []) or []) if x],
+                        related_companies=[str(x) for x in (sub.get('related_companies', []) or []) if x],
+                        catalyst_risk=str(sub.get('catalyst_risk', '')),
+                    ))
+            result.sectors.append(sec)
 
     # overall
     overall = data.get('overall', {}) or {}
@@ -936,24 +1129,96 @@ def _to_depth_result(data: dict, raw: str, stats: dict, model: str, ts: int) -> 
 
 
 def _render_depth_html(result: DepthReport) -> str:
-    """v4: 按子赛道渲染 HTML（类似机构日报）"""
+    """v5: 产业链日报 - 板块→子赛道→纪要 三层嵌套（金红喜庆主题）"""
     title = result.title or '产业链日报'
+    has_subs = any(s.sub_sectors for s in result.sectors)
 
-    # 象赛渲染
-    sectors_html_parts = []
+    # === 渲染板块（一级）===
+    boards_html = []
     for i, s in enumerate(result.sectors, 1):
-        highlights_html = ''.join(f'<li>{h}</li>' for h in s.highlights) if s.highlights else '<li>—</li>'
-        data_html = ''.join(f'<li>{d}</li>' for d in s.key_data) if s.key_data else '<li>—</li>'
-        companies_html = ''.join(f'<li>{c}</li>' for c in s.related_companies) if s.related_companies else '<li>—</li>'
-        tagline_html = f' <span style="font-size:13px;color:#64748b;font-weight:400;">· {s.tagline}</span>' if s.tagline else ''
+        if s.sub_sectors:
+            # v5: 嵌套渲染子赛道
+            subs_html_parts = []
+            for j, sub in enumerate(s.sub_sectors, 1):
+                highlights_html = ''.join(f'<li>{h}</li>' for h in sub.highlights) if sub.highlights else '<li>—</li>'
+                data_html = ''.join(f'<li>{d}</li>' for d in sub.key_data) if sub.key_data else '<li>—</li>'
+                companies_html = ''.join(f'<li>{c}</li>' for c in sub.related_companies) if sub.related_companies else '<li>—</li>'
 
-        sectors_html_parts.append(f'''
-<div class="sector">
-  <div class="sector-header">
-    <span class="sector-num">{i}</span>
-    <span class="sector-name">{s.name}</span>{tagline_html}
+                # key_minutes 可折叠
+                minutes_block = ""
+                if sub.key_minutes:
+                    minutes_items = []
+                    for km in sub.key_minutes:
+                        src = km.get('source', '')
+                        time = km.get('time', '')
+                        summary = km.get('summary', '')
+                        meta = f'[{src}'
+                        if time:
+                            meta += f'·{time}'
+                        meta += ']'
+                        minutes_items.append(f'<li><span class="km-meta">{meta}</span> <span class="km-summary">{summary}</span></li>')
+                    minutes_html = ''.join(minutes_items)
+                    minutes_block = (
+                        '\n<div class="sector-block key-minutes-block">'
+                        '\n  <div class="block-label">纪要提炼（' + str(len(sub.key_minutes)) + ' 条）</div>'
+                        '\n  <details class="key-minutes-details" open>'
+                        '\n    <summary>展开/折叠纪要原文摘要</summary>'
+                        '\n    <ol class="key-minutes-list">' + minutes_html + '</ol>'
+                        '\n  </details>'
+                        '\n</div>'
+                    )
+
+                sub_tagline = f' <span class="sub-tagline">· {sub.tagline}</span>' if sub.tagline else ''
+                subs_html_parts.append(f"""
+<div class="sub-sector">
+  <div class="sub-header">
+    <span class="sub-num">{i}.{j}</span>
+    <span class="sub-name">{sub.name}</span>{sub_tagline}
   </div>
-  <div class="sector-body">
+  <div class="sub-body">
+    <div class="sector-block">
+      <div class="block-label">【核心要闻】</div>
+      <ol class="block-list">{highlights_html}</ol>
+    </div>
+    {minutes_block}
+    <div class="sector-block">
+      <div class="block-label">【关键数据】</div>
+      <ul class="block-list">{data_html}</ul>
+    </div>
+    <div class="sector-block">
+      <div class="block-label">【相关公司】</div>
+      <ul class="block-list companies">{companies_html}</ul>
+    </div>
+    <div class="sector-block catalyst-risk">
+      <div class="block-label">【催化/风险】</div>
+      <div class="block-text">{sub.catalyst_risk or '—'}</div>
+    </div>
+  </div>
+</div>""")
+
+            board_tagline = f' <span class="board-tagline">· {s.tagline}</span>' if s.tagline else ''
+            boards_html.append(f"""
+<div class="board">
+  <div class="board-header">
+    <span class="board-num">{i}</span>
+    <span class="board-name">{s.name}</span>{board_tagline}
+    <span class="board-count">· {len(s.sub_sectors)} 个子赛道</span>
+  </div>
+  <div class="board-body">__BOARD_SUBS_PLACEHOLDER__</div>
+</div>""".replace('__BOARD_SUBS_PLACEHOLDER__', ''.join(subs_html_parts)))
+        else:
+            # v4 fallback: 老渲染
+            highlights_html = ''.join(f'<li>{h}</li>' for h in s.highlights) if s.highlights else '<li>—</li>'
+            data_html = ''.join(f'<li>{d}</li>' for d in s.key_data) if s.key_data else '<li>—</li>'
+            companies_html = ''.join(f'<li>{c}</li>' for c in s.related_companies) if s.related_companies else '<li>—</li>'
+            tagline_html = f' <span class="board-tagline">· {s.tagline}</span>' if s.tagline else ''
+            boards_html.append(f"""
+<div class="board">
+  <div class="board-header">
+    <span class="board-num">{i}</span>
+    <span class="board-name">{s.name}</span>{tagline_html}
+  </div>
+  <div class="board-body">
     <div class="sector-block">
       <div class="block-label">【核心要闻】</div>
       <ol class="block-list">{highlights_html}</ol>
@@ -971,17 +1236,18 @@ def _render_depth_html(result: DepthReport) -> str:
       <div class="block-text">{s.catalyst_risk or '—'}</div>
     </div>
   </div>
-</div>''')
+</div>""")
 
-    # overall 渲染
+    # === 当周总结渲染 ===
     main_lines_html = ''.join(f'<li>{x}</li>' for x in result.main_lines) if result.main_lines else '<li>—</li>'
     catalysts_new_html = ''.join(f'<li>{x}</li>' for x in result.catalysts_new) if result.catalysts_new else '<li>—</li>'
     catalysts_cooling_html = ''.join(f'<li>{x}</li>' for x in result.catalysts_cooling) if result.catalysts_cooling else '<li>—</li>'
     risks_html = ''.join(f'<li>{x}</li>' for x in result.risks) if result.risks else '<li>—</li>'
 
     stats_line = f'国内: {result.domestic_count}条 | 海外: {result.overseas_count}条 | 纪要: {result.minutes_count}条 | 总计: {result.total_news}条'
+    version_badge = 'v5 三层嵌套' if has_subs else 'v4 单层'
 
-    html = f'''<!DOCTYPE html>
+    html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -989,44 +1255,75 @@ def _render_depth_html(result: DepthReport) -> str:
 <title>{title} - 知几察微</title>
 <style>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; background: #f8fafc; color: #1f2937; line-height: 1.7; padding: 20px; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; background: #fef2f2; color: #1f2937; line-height: 1.7; padding: 20px; }}
 .container {{ max-width: 980px; margin: 0 auto; }}
-.header {{ background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 28px 32px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2); }}
-.header h1 {{ font-size: 24px; font-weight: 700; margin-bottom: 8px; }}
-.header .meta {{ font-size: 13px; opacity: 0.9; }}
-.stats {{ background: #ecfdf5; color: #047857; padding: 12px 20px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; }}
-.sector {{ background: white; border-radius: 10px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border-left: 4px solid #059669; }}
-.sector-header {{ background: linear-gradient(90deg, #ecfdf5 0%, #ffffff 100%); padding: 14px 20px; font-size: 17px; color: #047857; font-weight: 600; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 10px; }}
-.sector-num {{ background: #059669; color: white; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }}
-.sector-body {{ padding: 16px 22px; }}
-.sector-block {{ margin-bottom: 14px; }}
+.header {{ background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%); color: white; padding: 28px 32px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 16px rgba(220, 38, 38, 0.25); position: relative; overflow: hidden; }}
+.header::before {{ content: ""; position: absolute; top: -50%; right: -20%; width: 400px; height: 400px; background: radial-gradient(circle, rgba(245, 158, 11, 0.18) 0%, transparent 60%); border-radius: 50%; }}
+.header h1 {{ font-size: 24px; font-weight: 700; margin-bottom: 8px; position: relative; }}
+.header .meta {{ font-size: 13px; opacity: 0.92; position: relative; }}
+.header .badge {{ display: inline-block; background: linear-gradient(90deg, #F59E0B, #D97706); color: white; padding: 3px 12px; border-radius: 14px; font-size: 12px; font-weight: 600; margin-left: 8px; box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4); }}
+.stats {{ background: linear-gradient(90deg, #FEF2F2, #FEE2E2); color: #991B1B; padding: 12px 20px; border-radius: 8px; margin-bottom: 16px; font-size: 13px; border: 1px solid #FECACA; }}
+
+/* 板块（一级）*/
+.board {{ background: white; border-radius: 12px; margin-bottom: 18px; overflow: hidden; box-shadow: 0 2px 8px rgba(220, 38, 38, 0.08); border: 1px solid #FECACA; }}
+.board-header {{ background: linear-gradient(90deg, #DC2626 0%, #B91C1C 100%); padding: 14px 22px; font-size: 18px; color: white; font-weight: 700; display: flex; align-items: center; gap: 12px; box-shadow: inset 0 -2px 8px rgba(0,0,0,0.1); }}
+.board-num {{ background: rgba(255,255,255,0.25); color: white; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; border: 2px solid rgba(255,255,255,0.3); flex-shrink: 0; }}
+.board-name {{ flex-shrink: 0; }}
+.board-tagline {{ font-size: 13px; font-weight: 400; opacity: 0.92; }}
+.board-count {{ font-size: 12px; font-weight: 400; opacity: 0.85; margin-left: auto; }}
+.board-body {{ padding: 4px 0; }}
+
+/* 子赛道（二级）*/
+.sub-sector {{ padding: 18px 24px; border-bottom: 1px solid #F3F4F6; }}
+.sub-sector:last-child {{ border-bottom: none; }}
+.sub-header {{ font-size: 15px; color: #991B1B; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }}
+.sub-num {{ background: linear-gradient(135deg, #F59E0B, #D97706); color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 700; min-width: 32px; text-align: center; flex-shrink: 0; }}
+.sub-name {{ color: #991B1B; }}
+.sub-tagline {{ font-size: 13px; color: #B91C1C; font-weight: 400; }}
+.sub-body {{ padding-left: 4px; }}
+
+.sector-block {{ margin-bottom: 12px; }}
 .sector-block:last-child {{ margin-bottom: 0; }}
-.block-label {{ font-size: 13px; color: #047857; font-weight: 600; margin-bottom: 6px; }}
+.block-label {{ font-size: 13px; color: #B91C1C; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }}
 .block-list {{ margin-left: 0; padding-left: 22px; color: #374151; font-size: 14px; }}
-.block-list li {{ margin-bottom: 4px; }}
+.block-list li {{ margin-bottom: 4px; line-height: 1.65; }}
 .companies {{ list-style: none; padding-left: 0; display: flex; flex-wrap: wrap; gap: 6px; }}
-.companies li {{ background: #f0fdf4; color: #047857; padding: 3px 10px; border-radius: 12px; font-size: 13px; margin-bottom: 0; }}
-.catalyst-risk .block-text {{ background: #fefce8; padding: 8px 12px; border-radius: 6px; color: #713f12; font-size: 13px; line-height: 1.6; }}
-.overall {{ background: #1e293b; color: #e2e8f0; padding: 24px 28px; border-radius: 10px; margin-bottom: 16px; }}
-.overall h2 {{ font-size: 18px; color: #fbbf24; margin-bottom: 14px; font-weight: 700; }}
+.companies li {{ background: linear-gradient(90deg, #FEF2F2, #FEE2E2); color: #991B1B; padding: 3px 10px; border-radius: 12px; font-size: 13px; margin-bottom: 0; border: 1px solid #FECACA; }}
+
+/* 纪要提炼（可折叠）*/
+.key-minutes-block {{ background: linear-gradient(90deg, #FFFBEB 0%, #FEF3C7 100%); border-radius: 8px; padding: 10px 14px; border-left: 3px solid #F59E0B; }}
+.key-minutes-details summary {{ cursor: pointer; font-size: 13px; color: #B45309; font-weight: 600; padding: 4px 0; user-select: none; }}
+.key-minutes-details summary::marker {{ color: #F59E0B; }}
+.key-minutes-details[open] summary {{ margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed #FCD34D; }}
+.key-minutes-list {{ padding-left: 20px; margin: 0; color: #78350F; font-size: 13px; }}
+.key-minutes-list li {{ margin-bottom: 6px; line-height: 1.6; padding: 4px 0; }}
+.km-meta {{ background: #DC2626; color: white; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-right: 6px; }}
+.km-summary {{ color: #422006; }}
+
+.catalyst-risk .block-text {{ background: linear-gradient(90deg, #FEF2F2, #FECACA); padding: 8px 12px; border-radius: 6px; color: #7F1D1D; font-size: 13px; line-height: 1.6; border-left: 3px solid #DC2626; }}
+
+/* 当周总结 */
+.overall {{ background: linear-gradient(135deg, #7F1D1D 0%, #450A0A 100%); color: #FEE2E2; padding: 24px 28px; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 4px 16px rgba(127, 29, 29, 0.3); }}
+.overall h2 {{ font-size: 18px; color: #FCD34D; margin-bottom: 14px; font-weight: 700; }}
 .overall-block {{ margin-bottom: 16px; }}
 .overall-block:last-child {{ margin-bottom: 0; }}
-.overall-block .label {{ color: #fbbf24; font-size: 14px; font-weight: 600; margin-bottom: 6px; }}
-.overall-block ol, .overall-block ul {{ padding-left: 22px; font-size: 13px; color: #cbd5e1; }}
+.overall-block .label {{ color: #FCD34D; font-size: 14px; font-weight: 600; margin-bottom: 6px; }}
+.overall-block ol, .overall-block ul {{ padding-left: 22px; font-size: 13px; color: #FEE2E2; }}
 .overall-block li {{ margin-bottom: 3px; }}
-footer {{ text-align: center; color: #94a3b8; font-size: 12px; margin-top: 30px; padding: 16px; }}
+
+footer {{ text-align: center; color: #B45309; font-size: 12px; margin-top: 30px; padding: 16px; }}
 </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
-    <h1>📊 {title}</h1>
+    <h1>{title}<span class="badge">{version_badge}</span></h1>
     <div class="meta">生成时间: {result.time_str}</div>
   </div>
-  <div class="stats">📊 {stats_line}</div>
-  {''.join(sectors_html_parts)}
+  <div class="stats">数据概览: {stats_line}</div>
+  __JOINED_BOARDS_PLACEHOLDER__
   <div class="overall">
-    <h2>🎯 当周总结</h2>
+    <h2>当周总结</h2>
     <div class="overall-block">
       <div class="label">【主线】</div>
       <ol>{main_lines_html}</ol>
@@ -1044,14 +1341,12 @@ footer {{ text-align: center; color: #94a3b8; font-size: 12px; margin-top: 30px;
       <ol>{risks_html}</ol>
     </div>
   </div>
-  <footer>知几察微 · jeeseek.top · v4 行业跟踪报告</footer>
+  <footer>知几察微 · jeeseek.top · {version_badge} · 金红喜庆主题</footer>
 </div>
 </body>
-</html>'''
+</html>"""
 
-    return html
-
-
+    return html.replace('__JOINED_BOARDS_PLACEHOLDER__', ''.join(boards_html))
 # ──────────────────────────────
 # 主入口：生成报告（自动选择 v1 或 v3 路径）
 # ──────────────────────────────
