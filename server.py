@@ -732,7 +732,7 @@ def _fetch_zsxq() -> List[dict]:
                 'title': title,
                 'pub_ts': pub_ts,
                 'source_id': 'zsxq',
-                'source_name': owner_name or '机构纪要',  # 花总=基业长青（owner.name），fallback 机构纪要
+                'source_name': '机构纪要',  # 花总拍：不暴露知识星球博主名
                 'owner_name': owner_name,
                 'group_name': group_name,
                 'group_id': str(t_group.get('group_id') or ZSXQ_GROUP_ID),
