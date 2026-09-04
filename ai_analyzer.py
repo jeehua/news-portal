@@ -515,6 +515,70 @@ SECTOR_HIERARCHY = {
 }
 
 
+def _compute_sector_frequency(minutes: List[Dict], domestic: List[Dict], overseas: List[Dict]) -> Dict[str, int]:
+    """v5.4: 计算 8 板块的热度分值（板块热度榜）
+
+    计分规则：
+      - 纪要命中板块：每条 +3 分（每个二级分类计一次，跨板块累加）
+      - 国内/海外新闻命中板块：每条 +1 分（板块去重，多子赛道只计 1 分）
+
+    返回：按频次降序的 dict，例如
+        {'AI 算力链': 87, '端侧 AI': 42, '周期与宏观': 18, ...}
+    """
+    freq = {b: 0 for b in SECTOR_HIERARCHY.keys()}
+
+    # 1. 纪要：每条按二级分类累加 ×3
+    for m in minutes or []:
+        title = m.get('title', '')
+        content = m.get('content', '')
+        pairs = _classify_minutes_sub_sectors(title, content)
+        seen_boards = set()
+        for p in pairs:
+            board = p.get('board', '')
+            if board in freq and board not in seen_boards:
+                freq[board] += 3
+                seen_boards.add(board)
+
+    # 2. 新闻：每条命中板块 +1（板块级去重）
+    for n in list(domestic or []) + list(overseas or []):
+        title = n.get('title', '')
+        content = n.get('content', '') or n.get('summary', '') or n.get('text', '')
+        text = (title + ' ' + content)[:2000]
+        if not text.strip():
+            continue
+        for board, info in SECTOR_HIERARCHY.items():
+            matched = False
+            for keywords in info['sub_sectors'].values():
+                for kw in keywords:
+                    if kw and kw in text:
+                        matched = True
+                        break
+                if matched:
+                    break
+            if matched:
+                freq[board] += 1
+
+    # 3. 降序排序
+    sorted_freq = dict(sorted(freq.items(), key=lambda x: x[1], reverse=True))
+    log.info(f'[jeeseek.ai] 板块热度榜: ' + ' | '.join(
+        f'{b}={n}' for b, n in list(sorted_freq.items())[:8]
+    ))
+    return sorted_freq
+
+
+def _format_sector_frequency_for_prompt(freq: Dict[str, int]) -> str:
+    """v5.4: 把板块热度榜格式化成 prompt 友好的文本
+
+    格式：'1.AI 算力链（87 分） 2.端侧 AI（42 分） 3.周期与宏观（18 分） ...'
+    """
+    if not freq:
+        return '（无数据）'
+    lines = []
+    for i, (board, score) in enumerate(freq.items(), 1):
+        lines.append(f'{i}.{board}（{score} 分）')
+    return ' '.join(lines)
+
+
 def _classify_minutes_sub_sectors(title: str, content: str = '') -> List[Dict[str, str]]:
     """v5: 返回纪要的二级分类 [(板块, 子赛道), ...]，可多标签
 
@@ -1088,7 +1152,7 @@ footer {{ text-align: center; color: #94a3b8; font-size: 12px; margin-top: 30px;
 # ──────────────────────────────
 # v4: 行业跟踪报告渲染（按子赛道切分）
 # ──────────────────────────────
-def _to_depth_result(data: dict, raw: str, stats: dict, model: str, ts: int) -> DepthReport:
+def _to_depth_result(data: dict, raw: str, stats: dict, model: str, ts: int, sector_freq: Dict[str, int] = None) -> DepthReport:
     result = DepthReport(
         raw_response=raw,
         success=True,
@@ -1145,6 +1209,18 @@ def _to_depth_result(data: dict, raw: str, stats: dict, model: str, ts: int) -> 
     result.catalysts_new = [str(x) for x in (catalysts.get('new', []) or []) if x]
     result.catalysts_cooling = [str(x) for x in (catalysts.get('cooling', []) or []) if x]
     result.risks = [str(x) for x in (overall.get('risks', []) or []) if x]
+
+    # v5.4 兜底：按板块热度榜排序（防止 AI 没听指令乱排）
+    if sector_freq and result.sectors:
+        freq_order = list(sector_freq.keys())
+        def _sort_key(sec):
+            try:
+                return freq_order.index(sec.name)
+            except ValueError:
+                return len(freq_order)  # AI 新增的板块（不在 8 板块里）排最后
+        result.sectors.sort(key=_sort_key)
+        log.info(f'[jeeseek.ai] v5.4 兜底排序完成: ' + ' > '.join(s.name for s in result.sectors))
+
     return result
 
 
@@ -1434,6 +1510,18 @@ async def generate_report(
     user_p = user_p.replace('{overseas_content}', overseas_text)
     user_p = user_p.replace('{minutes_content}', minutes_text)
 
+    # v5.4: 计算板块热度榜（仅 depth 模式需要，macro 模式不适用）
+    sector_freq = None
+    if mode == 'depth':
+        try:
+            sector_freq = _compute_sector_frequency(minutes, domestic, overseas)
+            user_p = user_p.replace('{sector_frequency}', _format_sector_frequency_for_prompt(sector_freq))
+        except Exception as e:
+            log.warning(f'[jeeseek.ai] 板块热度计算失败: {e}')
+            user_p = user_p.replace('{sector_frequency}', '（热度计算失败，按 prompt 默认顺序）')
+    else:
+        user_p = user_p.replace('{sector_frequency}', '（仅 depth 模式使用）')
+
     log.info(f'[jeeseek.ai] 生成报告 (mode={mode}): 国内{len(domestic)} 海外{len(overseas)} 纪要{len(minutes)}')
 
     # 调用 AI（depth 模式增加超时，因为 token 更多）
@@ -1466,7 +1554,7 @@ async def generate_report(
     if mode == 'depth':
         is_depth = data and 'sectors' in data and isinstance(data.get('sectors'), list)
         if is_depth:
-            result = _to_depth_result(data, raw, stats, '智能分析', ts)
+            result = _to_depth_result(data, raw, stats, '智能分析', ts, sector_freq=sector_freq)
             html = _render_depth_html(result)
             log.info(f'[jeeseek.ai] v4 depth 渲染完成，象赛道 {len(result.sectors)} 条')
         else:

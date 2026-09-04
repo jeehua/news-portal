@@ -256,6 +256,15 @@
 - 海外资讯：{overseas_count}条
 - 机构纪要（含 ZSXQ 调研）：{minutes_count}条（**重点数据源，按【板块/子赛道】二级预分类**）
 
+## 📊 板块热度榜（今天数据自动统计，v5.4 新增）
+
+**请严格按下面热度榜的顺序输出 `sectors` 字段，TOP 板块放前面**，让读者一眼看到当下最热的产业线：
+
+{sector_frequency}
+
+> 热度计算口径：纪要 ×3 分（每个二级分类）+ 新闻 ×1 分（板块去重）
+> 这是板块级热度参考，具体选 4-6 个板块时优先选热度 ≥10 分的板块
+
 ## 国内要闻
 {domestic_content}
 
@@ -270,7 +279,7 @@
 请**严格按上面 JSON 结构（v5）**输出产业链日报：
 
 1. `title`：取主标题（按当日最热板块命名）
-2. `sectors`：从 8 个板块中选 4-6 个，每个板块选 3-6 个子赛道
+2. `sectors`：**严格按上面【板块热度榜】顺序输出**，从热度榜中选 4-6 个板块（优先选热度 ≥10 分的），每个板块选 3-6 个子赛道
 3. 每个 `sub_sectors` 含 5 个字段（highlights / key_minutes / key_data / related_companies / catalyst_risk）
 4. `key_minutes` 每条含 source + time + summary 三个属性，**每条纪要 1 句话提炼**
 5. `overall`：当周主线 + 催化清单 + 风险提示
