@@ -23,8 +23,15 @@ if [ -d "$SECRET_DIR" ]; then
                 if [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
                     key="${BASH_REMATCH[1]}"
                     value="${BASH_REMATCH[2]}"
-                    # 去掉前后空格和单引号/双引号
-                    value=$(echo "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e "s/^['"]//" -e "s/['"]$//")
+                    # 去掉前后空格
+                    value="${value#"${value%%[![:space:]]*}"}"
+                    value="${value%"${value##*[![:space:]]}"}"
+                    # 去掉首尾单/双引号（用 bash 内置，避免 sed 单引号转义陷阱）
+                    if [[ "$value" == \"*\" ]]; then
+                        value="${value:1:-1}"
+                    elif [[ "$value" == \'*\' ]]; then
+                        value="${value:1:-1}"
+                    fi
                     export "$key"="$value"
                 fi
             done < "$f"
