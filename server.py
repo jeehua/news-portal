@@ -897,6 +897,12 @@ async def stats_middleware(request: Request, call_next):
 @app.on_event('startup')
 async def on_startup():
     _init_stats_db()
+    # v4: 启动时打印 translator cache 状态
+    try:
+        stats = _translate_stats()
+        log.info(f'[jeeseek.startup] translator 状态: enabled={stats.get("enabled")} cached={stats.get("cached")}')
+    except Exception as e:
+        log.warning(f'[jeeseek.startup] translator 状态读取失败: {e}')
     asyncio.create_task(fetch_loop())
 
     # v4: 30 秒后预热 AI 报告缓存
@@ -927,6 +933,21 @@ async def healthz():
         'overseas': len(BC.snapshot['overseas']),
         'minutes': len(BC.snapshot['minutes']),
     }
+
+@app.get('/api/debug/translate')
+async def debug_translate(text: str = 'Apple unveils new AI chip'):
+    """调试翻译:返回 translator 状态 + 测试翻译"""
+    try:
+        stats = _translate_stats()
+        translated = _translate_title(text)
+        return {
+            'stats': stats,
+            'input': text,
+            'output': translated,
+            'is_chinese': any('\u4e00' <= c <= '\u9fff' for c in translated)
+        }
+    except Exception as e:
+        return {'error': str(e), 'type': type(e).__name__}
 
 @app.get('/api/news')
 async def get_news(category: str = Query('domestic', pattern='^(domestic|overseas|minutes)$'),
