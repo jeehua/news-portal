@@ -1,34 +1,8 @@
-# 敏感文件（绝对不 commit）
-.env
-.env.*
-*.key
-*.pem
-.aws/
-.ssh/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-*.egg-info/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# 日志 / 临时
-*.log
-*.tmp
-tmp/
-
-# 数据
-/app/data/*.db
-/app/reports/*.html
-
-# 编辑器
-.vscode/
-.idea/
-*.swp
-*.swo
-.DS_Store
+﻿.git.old/
+.git.old/**
+data/
+data/news.db
+jeeseek.env
+.commit_msg_v53b.txt
+.commit_msg_v53c.txt__pycache__/
+*.pyc

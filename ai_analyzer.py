@@ -48,9 +48,13 @@ def _load_agnes_key():
     key = os.getenv('AGNES_API_KEY')
     if key:
         return key
-    for path in ['/home/ubuntu/trendradar/config/ai_key.txt', '/var/www/jeeseek/api/.agnes_key']:
+    # Render Secret Files 挂载到 /etc/secrets/
+    for path in ['/etc/secrets/jeeseek.env', '/home/ubuntu/trendradar/config/ai_key.txt', '/var/www/jeeseek/api/.agnes_key']:
         if Path(path).exists():
-            return Path(path).read_text().strip()
+            for line in Path(path).read_text(encoding='utf-8', errors='ignore').split('\n'):
+                line = line.strip()
+                if line.startswith('AGNES_API_KEY='):
+                    return line.split('=', 1)[1].strip().strip('"').strip("'")
     return ''
 
 AGNES_API_KEY = _load_agnes_key()
@@ -659,9 +663,13 @@ def _format_minutes_by_sub_sector(minutes_list: List[Dict], limit_per_sub: int =
 # Agnes API 调用
 # ──────────────────────────────
 def _call_agnes(system: str, user: str, max_tokens: int = None, timeout: int = None) -> str:
+    # 动态读取 env var（避免 import 时为空的问题）
+    key = os.getenv('AGNES_API_KEY') or _load_agnes_key()
+    if not key:
+        raise RuntimeError('AGNES_API_KEY is empty or missing')
     client = openai.OpenAI(
-        api_key=AGNES_API_KEY,
-        base_url=AGNES_BASE,
+        api_key=key,
+        base_url=os.getenv('AGNES_API_BASE', 'https://apihub.agnes-ai.com/v1'),
         timeout=timeout or AGNES_TIMEOUT,
     )
     resp = client.chat.completions.create(
