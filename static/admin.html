@@ -84,6 +84,21 @@ canvas { max-height: 240px; }
 </style>
 </head>
 <body>
+<!-- v5: 鉴权校验 — 未登录跳 login.html -->
+<script>
+(async function() {
+  try {
+    const r = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
+    if (!r.ok) throw 0;
+    const d = await r.json();
+    if (!d.ok || !d.authenticated) throw 0;
+    window.__jeeseekUser = d.user;
+  } catch (_) {
+    const next = encodeURIComponent(location.pathname + location.search);
+    location.replace('/login.html?next=' + next);
+  }
+})();
+</script>
 <div id="app"></div>
 
 <script>
@@ -287,5 +302,177 @@ document.addEventListener('keypress', e => {
   if (e.key === 'Enter' && !localStorage.getItem(TOKEN_KEY)) doLogin();
 });
 </script>
+
+<!-- ═══ v5: 邀请制社区管理面板 ═══ -->
+<div class="panel" id="invite-panel" style="margin-top: 20px;">
+  <h2 style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+    <span>邀请制社区管理</span>
+    <span id="invite-quota-badge" style="font-size: 13px; color: #64748b; font-weight: normal;"></span>
+  </h2>
+
+  <!-- 3 个统计卡片 -->
+  <div class="cards" style="margin-bottom: 16px;">
+    <div class="card purple">
+      <div class="label">剩余邀请名额</div>
+      <div class="value" id="iv-quota">-</div>
+    </div>
+    <div class="card green">
+      <div class="label">已邀请用户</div>
+      <div class="value" id="iv-count">-</div>
+    </div>
+    <div class="card amber">
+      <div class="label">已用邀请码</div>
+      <div class="value" id="iv-codes">-</div>
+    </div>
+  </div>
+
+  <!-- 创建邀请码 -->
+  <div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+    <div style="font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 10px;">创建新邀请码</div>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+      <label style="font-size: 12px; color: #64748b;">备注
+        <input type="text" id="iv-note" maxlength="128" placeholder="发给某某" style="margin-left: 4px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 4px; width: 160px; font-size: 13px;">
+      </label>
+      <label style="font-size: 12px; color: #64748b;">次数
+        <select id="iv-max-uses" style="margin-left: 4px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px;">
+          <option value="1">1 次</option>
+          <option value="3">3 次</option>
+          <option value="5">5 次</option>
+          <option value="10">10 次</option>
+        </select>
+      </label>
+      <label style="font-size: 12px; color: #64748b;">有效期
+        <select id="iv-expires" style="margin-left: 4px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px;">
+          <option value="0">永久</option>
+          <option value="7">7 天</option>
+          <option value="30" selected>30 天</option>
+          <option value="90">90 天</option>
+        </select>
+      </label>
+      <button class="refresh-btn" onclick="createInviteCode()">+ 创建</button>
+      <span id="iv-create-result" style="font-size: 12px; color: #15803d;"></span>
+    </div>
+  </div>
+
+  <!-- 我的邀请码 -->
+  <div class="grid2" style="grid-template-columns: 1fr 1fr;">
+    <div>
+      <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">我的邀请码</h3>
+      <div style="max-height: 300px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px;">
+        <table id="iv-codes-table">
+          <thead><tr><th>邀请码</th><th>使用</th><th>备注</th><th>状态</th></tr></thead>
+          <tbody id="iv-codes-tbody">
+            <tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px;">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">我邀请的用户</h3>
+      <div style="max-height: 300px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px;">
+        <table>
+          <thead><tr><th>ID</th><th>用户名</th><th>昵称</th><th>注册时间</th></tr></thead>
+          <tbody id="iv-invited-tbody">
+            <tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px;">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 邀请码管理
+async function createInviteCode() {
+  const note = document.getElementById('iv-note').value.trim();
+  const maxUses = parseInt(document.getElementById('iv-max-uses').value);
+  const expires = parseInt(document.getElementById('iv-expires').value);
+  const resultEl = document.getElementById('iv-create-result');
+  resultEl.textContent = '创建中…';
+  resultEl.style.color = '#64748b';
+  try {
+    const r = await fetch('/api/invite/create', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note, max_uses: maxUses, expires_in_days: expires }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.detail || d.error || `HTTP ${r.status}`);
+    resultEl.innerHTML = '已创建 <code style="background:#f1f5f9;padding:1px 6px;border-radius:3px;font-family:monospace;">' + d.code + '</code> · 剩余 ' + d.remaining_quota;
+    resultEl.style.color = '#15803d';
+    document.getElementById('iv-note').value = '';
+    loadInviteData();
+  } catch (e) {
+    resultEl.textContent = e.message;
+    resultEl.style.color = '#b91c1c';
+  }
+}
+
+async function loadInviteData() {
+  try {
+    const [codesRes, invitedRes] = await Promise.all([
+      fetch('/api/invite/my-codes', { credentials: 'include' }),
+      fetch('/api/invite/my-invites', { credentials: 'include' }),
+    ]);
+    const codesData = await codesRes.json();
+    const invitedData = await invitedRes.json();
+    if (!codesData.ok) throw new Error(codesData.error || '加载邀请码失败');
+    if (!invitedData.ok) throw new Error(invitedData.error || '加载邀请列表失败');
+
+    // 更新统计卡片
+    document.getElementById('iv-quota').textContent = codesData.remaining_quota;
+    document.getElementById('iv-count').textContent = invitedData.invited.length;
+    const usedCodes = codesData.codes.filter(c => c.use_count > 0).length;
+    document.getElementById('iv-codes').textContent = usedCodes;
+    document.getElementById('invite-quota-badge').textContent =
+      '剩余 ' + codesData.remaining_quota + ' 个名额';
+
+    // 邀请码表
+    const codesTbody = document.getElementById('iv-codes-tbody');
+    if (codesData.codes.length === 0) {
+      codesTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px;">还没有邀请码，点上面"创建"</td></tr>';
+    } else {
+      codesTbody.innerHTML = codesData.codes.map(c => {
+        const statusColor = c.status === 'active' ? '#15803d' : (c.status === 'exhausted' ? '#b45309' : '#dc2626');
+        const statusText = c.status === 'active' ? '有效' : (c.status === 'exhausted' ? '已用完' : '已撤销');
+        return '<tr>' +
+          '<td><code style="background:#f1f5f9;padding:1px 6px;border-radius:3px;font-family:monospace;font-size:12px;">' + c.code + '</code></td>' +
+          '<td>' + c.use_count + ' / ' + c.max_uses + '</td>' +
+          '<td style="color:#64748b;">' + (c.note || '—') + '</td>' +
+          '<td><span style="color:' + statusColor + ';font-weight:600;">' + statusText + '</span></td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    // 邀请用户表
+    const invitedTbody = document.getElementById('iv-invited-tbody');
+    if (invitedData.invited.length === 0) {
+      invitedTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px;">还没邀请过任何人</td></tr>';
+    } else {
+      invitedTbody.innerHTML = invitedData.invited.map(u => {
+        const d = new Date(u.created_at * 1000);
+        const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        return '<tr>' +
+          '<td>#' + u.id + '</td>' +
+          '<td style="font-weight:600;">' + u.username + '</td>' +
+          '<td style="color:#64748b;">' + (u.display_name || '—') + '</td>' +
+          '<td style="color:#64748b;">' + ds + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+  } catch (e) {
+    console.error('loadInviteData failed:', e);
+  }
+}
+
+// 页面加载完跑一次
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => setTimeout(loadInviteData, 200));
+} else {
+  setTimeout(loadInviteData, 200);
+}
+</script>
+
 </body>
 </html>

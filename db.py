@@ -78,6 +78,94 @@ def init_schema():
             success_count INTEGER DEFAULT 0,
             fail_count INTEGER DEFAULT 0
         )''')
+
+        # ===== Auth & Invite 扩展表 =====
+        c.execute('''CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            display_name TEXT,
+            role TEXT DEFAULT 'user',
+            invite_quota INTEGER DEFAULT 3,
+            invited_by INTEGER REFERENCES users(id),
+            created_at BIGINT NOT NULL,
+            last_login_at BIGINT,
+            status TEXT DEFAULT 'active'
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_invited_by ON users(invited_by)')
+        c.execute('''CREATE TABLE IF NOT EXISTS invite_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            created_by INTEGER NOT NULL REFERENCES users(id),
+            used_by INTEGER REFERENCES users(id),
+            max_uses INTEGER DEFAULT 1,
+            use_count INTEGER DEFAULT 0,
+            note TEXT,
+            created_at BIGINT NOT NULL,
+            used_at BIGINT,
+            expires_at BIGINT,
+            status TEXT DEFAULT 'active'
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_invite_code ON invite_codes(code)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_invite_created_by ON invite_codes(created_by)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_invite_status ON invite_codes(status)')
+        c.execute('''CREATE TABLE IF NOT EXISTS user_sessions (
+            jti TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            issued_at BIGINT NOT NULL,
+            expires_at BIGINT NOT NULL,
+            revoked INTEGER DEFAULT 0
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_session_user ON user_sessions(user_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_session_expires ON user_sessions(expires_at)')
+
+
+        # ===== Auth & Invite 扩展表 =====
+        c.execute('''CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            display_name TEXT,
+            role TEXT DEFAULT 'user',
+            invite_quota INTEGER DEFAULT 3,
+            invited_by INTEGER REFERENCES users(id),
+            created_at BIGINT NOT NULL,
+            last_login_at BIGINT,
+            status TEXT DEFAULT 'active'
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_invited_by ON users(invited_by)')
+        c.execute('''CREATE TABLE IF NOT EXISTS invite_codes (
+            id SERIAL PRIMARY KEY,
+            code TEXT UNIQUE NOT NULL,
+            created_by INTEGER NOT NULL REFERENCES users(id),
+            used_by INTEGER REFERENCES users(id),
+            max_uses INTEGER DEFAULT 1,
+            use_count INTEGER DEFAULT 0,
+            note TEXT,
+            created_at BIGINT NOT NULL,
+            used_at BIGINT,
+            expires_at BIGINT,
+            status TEXT DEFAULT 'active'
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_invite_code ON invite_codes(code)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_invite_created_by ON invite_codes(created_by)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_invite_status ON invite_codes(status)')
+        c.execute('''CREATE TABLE IF NOT EXISTS user_sessions (
+            jti TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            issued_at BIGINT NOT NULL,
+            expires_at BIGINT NOT NULL,
+            revoked INTEGER DEFAULT 0
+        )''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_session_user ON user_sessions(user_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_session_expires ON user_sessions(expires_at)')
+
     else:
         # SQLite: INTEGER PRIMARY KEY AUTOINCREMENT
         c.execute('''CREATE TABLE IF NOT EXISTS visit_logs (

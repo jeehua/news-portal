@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 # 数据库抽象层（Render 部署用 Postgres / 本地用 SQLite）
 import db
+import auth  # jeeseek 邀请制鉴权（见 auth.py）
 
 # 腾讯云机器翻译(实时翻译海外资讯)
 try:
@@ -26,7 +27,9 @@ except Exception:
     def _translate_title(t): return t
     def _translate_stats(): return {'cached': 0, 'max': 0, 'enabled': False}
 
-from fastapi import FastAPI, Query, Request, HTTPException
+from fastapi import FastAPI, Query, Request, HTTPException, Response
+from fastapi import Cookie, Depends, status as fastapi_status
+from pydantic import BaseModel, Field
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
@@ -875,6 +878,68 @@ def _parse_device_browser(ua: str):
         browser = 'Other'
     return device, browser
 
+class RegisterReq(BaseModel):
+    username: str = Field(min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_\-]+$")
+    email: str = Field(min_length=3, max_length=128)
+    password: str = Field(min_length=8, max_length=128)
+    invite_code: str = Field(min_length=8, max_length=32)
+    display_name: str = Field(default="", max_length=64)
+
+class LoginReq(BaseModel):
+    username: str = Field(min_length=1, max_length=128)
+    password: str = Field(min_length=1, max_length=128)
+
+class CreateInviteReq(BaseModel):
+    max_uses: int = Field(default=1, ge=1, le=50)
+    note: str = Field(default="", max_length=128)
+    expires_in_days: int = Field(default=0, ge=0, le=365)  # 0 = 永久
+
+# 不需要登录的路径前缀/精确路径
+AUTH_PUBLIC_PATHS = (
+    "/api/auth/",       # 注册/登录/登出/me
+    "/api/stats",       # 公开 stats 计数器
+    "/api/about",       # 公开 about
+    "/api/news",        # 公开新闻（CF Worker 已可匿名；保持一致）
+    "/healthz",         # 健康检查
+    "/static/",         # 静态资源
+    "/events",          # SSE
+    "/favicon.ico",
+    "/robots.txt",
+)
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """邀请制鉴权：除白名单外，所有 /api/* 必须登录"""
+    path = request.url.path
+    # 白名单内直接放行
+    for pub in AUTH_PUBLIC_PATHS:
+        if path == pub or path.startswith(pub):
+            return await call_next(request)
+    # 只锁 /api/*（前端页面走 index.html 静态分发 + JS 二次校验）
+    if not path.startswith("/api/"):
+        return await call_next(request)
+    # 检查 cookie
+    token = request.cookies.get(auth.COOKIE_NAME)
+    user = None
+    if token:
+        payload = auth.decode_token(token)
+        if payload:
+            jti = payload.get("jti")
+            if jti and auth.is_session_valid(jti):
+                uid = int(payload.get("sub", 0))
+                if uid:
+                    user = auth.get_user_by_id(uid)
+                    if user and user.get("status") != "active":
+                        user = None
+    if not user:
+        return JSONResponse(
+            status_code=401,
+            content={"ok": False, "error": "需要登录", "code": "AUTH_REQUIRED"},
+        )
+    # 把 user 挂到 request.state 给后续 handler 用
+    request.state.user = user
+    return await call_next(request)
+
 @app.middleware('http')
 async def stats_middleware(request: Request, call_next):
     start = time.time()
@@ -1378,6 +1443,168 @@ async def api_ai_hotspot_cache_clear(authorization: str = Header(None)):
     n = len(_CACHE)
     _CACHE.clear()
     return {'cleared': n}
+
+# ════════════════════════════════════════════════════════
+# 邀请制鉴权路由（v5 新增）
+# ════════════════════════════════════════════════════════
+
+@app.post("/api/auth/register")
+async def api_register(req: RegisterReq, response: Response):
+    # 1. 第一个注册的人自动成为 admin，不需要邀请码
+    is_first = auth.count_users() == 0
+
+    # 2. 校验邀请码（非首注册）
+    invite = None
+    if not is_first:
+        invite = auth.get_invite_code(req.invite_code)
+        if not invite:
+            raise HTTPException(400, "邀请码不存在")
+        if invite["status"] != "active":
+            raise HTTPException(400, f"邀请码已{invite['status']}")
+        if invite["expires_at"] and invite["expires_at"] < int(time.time()):
+            raise HTTPException(400, "邀请码已过期")
+        if invite["use_count"] >= invite["max_uses"]:
+            raise HTTPException(400, "邀请码已用完")
+
+    # 3. 唯一性检查
+    if auth.get_user_by_username(req.username):
+        raise HTTPException(400, "用户名已被占用")
+    if auth.get_user_by_email(req.email):
+        raise HTTPException(400, "邮箱已被注册")
+
+    # 4. 写库
+    role = "admin" if is_first else "user"
+    pw_hash = auth.hash_password(req.password)
+    display = req.display_name.strip() or req.username
+    invited_by = None if is_first else invite["created_by"]
+    now = int(time.time())
+    conn = db.connect()
+    cur = conn.cursor()
+    try:
+        if db.USE_POSTGRES:
+            cur.execute(
+                """INSERT INTO users (username,email,password_hash,display_name,role,invite_quota,invited_by,created_at,status)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'active') RETURNING id""",
+                (req.username, req.email.lower(), pw_hash, display, role, 3, invited_by, now),
+            )
+            uid = cur.fetchone()[0]
+        else:
+            cur.execute(
+                """INSERT INTO users (username,email,password_hash,display_name,role,invite_quota,invited_by,created_at,status)
+                   VALUES (?,?,?,?,?,?,?,?,'active')""",
+                (req.username, req.email.lower(), pw_hash, display, role, 3, invited_by, now),
+            )
+            uid = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+
+    # 5. 消耗邀请码
+    if not is_first:
+        auth.consume_invite_code(req.invite_code, uid)
+
+    # 6. 自动登录
+    token = auth.create_token(uid, req.username, role)
+    auth.set_auth_cookie(response, token)
+    log.info(f"[auth] 新用户注册: uid={uid} username={req.username} role={role} first={is_first}")
+    return {
+        "ok": True,
+        "user": {
+            "id": uid, "username": req.username, "display_name": display,
+            "role": role, "invite_quota": 3, "is_first": is_first,
+        },
+        "token": token,  # 便于前端 localStorage 备份（不强依赖）
+    }
+
+
+@app.post("/api/auth/login")
+async def api_login(req: LoginReq, response: Response):
+    user = auth.get_user_by_username(req.username)
+    if not user or not auth.verify_password(req.password, user["password_hash"]):
+        raise HTTPException(401, "用户名或密码错误")
+    if user["status"] != "active":
+        raise HTTPException(403, f"账号已{user['status']}")
+    auth.update_last_login(user["id"])
+    token = auth.create_token(user["id"], user["username"], user["role"])
+    auth.set_auth_cookie(response, token)
+    log.info(f"[auth] 登录: uid={user['id']} username={user['username']}")
+    return {
+        "ok": True,
+        "user": {
+            "id": user["id"], "username": user["username"],
+            "display_name": user["display_name"], "role": user["role"],
+            "invite_quota": user["invite_quota"],
+        },
+    }
+
+
+@app.post("/api/auth/logout")
+async def api_logout(request: Request, response: Response):
+    # 吊销当前 session
+    token = request.cookies.get(auth.COOKIE_NAME)
+    if token:
+        payload = auth.decode_token(token)
+        if payload and payload.get("jti"):
+            auth.revoke_session(payload["jti"])
+    auth.clear_auth_cookie(response)
+    return {"ok": True}
+
+
+@app.get("/api/auth/me")
+async def api_me(request: Request):
+    user = getattr(request.state, "user", None)
+    if not user:
+        return {"ok": False, "authenticated": False}
+    return {
+        "ok": True,
+        "authenticated": True,
+        "user": {
+            "id": user["id"], "username": user["username"],
+            "display_name": user["display_name"], "role": user["role"],
+            "invite_quota": user["invite_quota"],
+        },
+    }
+
+
+@app.post("/api/invite/create")
+async def api_invite_create(req: CreateInviteReq, request: Request):
+    user = request.state.user
+    if user["invite_quota"] <= 0:
+        raise HTTPException(400, f"邀请名额已用完（剩余 {user['invite_quota']}）")
+    # 实际消耗一个名额
+    conn = db.connect()
+    cur = conn.cursor()
+    try:
+        if db.USE_POSTGRES:
+            cur.execute("UPDATE users SET invite_quota=invite_quota-1 WHERE id=%s", (user["id"],))
+        else:
+            cur.execute("UPDATE users SET invite_quota=invite_quota-1 WHERE id=?", (user["id"],))
+        conn.commit()
+    finally:
+        conn.close()
+    code = auth.create_invite_code(
+        created_by=user["id"],
+        max_uses=req.max_uses,
+        note=req.note,
+        expires_in_days=req.expires_in_days if req.expires_in_days > 0 else None,
+    )
+    log.info(f"[invite] uid={user['id']} 创建邀请码 {code} (max_uses={req.max_uses})")
+    return {"ok": True, "code": code, "remaining_quota": user["invite_quota"] - 1}
+
+
+@app.get("/api/invite/my-codes")
+async def api_invite_my_codes(request: Request):
+    user = request.state.user
+    codes = auth.list_my_invite_codes(user["id"])
+    return {"ok": True, "codes": codes, "remaining_quota": user["invite_quota"]}
+
+
+@app.get("/api/invite/my-invites")
+async def api_invite_my_invites(request: Request):
+    user = request.state.user
+    invited = auth.list_users_i_invited(user["id"])
+    return {"ok": True, "invited": invited, "remaining_quota": user["invite_quota"]}
+
 
 if __name__ == '__main__':
     import uvicorn

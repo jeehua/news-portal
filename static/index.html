@@ -344,6 +344,44 @@ body {
 </style>
 </head>
 <body>
+<!-- v5: 鉴权检查 inline script — 必须在所有 /api/* 调用之前 -->
+<script>
+(async function() {
+  try {
+    const r = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
+    if (!r.ok) throw new Error('not authed');
+    const d = await r.json();
+    if (!d.ok || !d.authenticated) throw new Error('not authed');
+    // 登录态：填右上角用户条
+    const u = d.user;
+    const ui = document.getElementById('user-info');
+    if (ui) {
+      const isAdmin = u.role === 'admin';
+      ui.innerHTML = [
+        '<span style="display:inline-flex;align-items:center;gap:6px;">',
+        '  <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;"></span>',
+        '  <span style="font-weight:600;color:#1e40af;">' + (u.display_name || u.username) + '</span>',
+        isAdmin ? '  <span style="background:#fbbf24;color:#fff;font-size:10px;padding:1px 6px;border-radius:999px;font-weight:700;">ADMIN</span>' : '',
+        '  <span style="color:#94a3b8;font-size:12px;">' + (u.invite_quota || 0) + ' 邀请名额</span>',
+        '  <a href="/admin.html" style="color:#2563eb;text-decoration:none;font-size:12px;">管理</a>',
+        '  <a href="#" onclick="jeeseekLogout(event)" style="color:#94a3b8;text-decoration:none;font-size:12px;">退出</a>',
+        '</span>'
+      ].join('');
+    }
+  } catch (e) {
+    // 未登录：跳登录页
+    const next = encodeURIComponent(location.pathname + location.search);
+    location.replace('/login.html?next=' + next);
+  }
+})();
+
+async function jeeseekLogout(e) {
+  e.preventDefault();
+  if (!confirm('确定退出登录？')) return;
+  try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(_) {}
+  location.href = '/login.html';
+}
+</script>
 <div class="header">
   <div style="display: flex; align-items: center; gap: 20px;">
     <h1><img src="/static/logo.png" alt="知几察微" style="height: 40px; width: 40px; vertical-align: middle; margin-right: 8px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));">知几察微</h1>
@@ -357,6 +395,7 @@ body {
     <span id="stats-info" style="font-size: 12px; color: #94a3b8; white-space: nowrap;"></span>
     <button class="btn btn-secondary" id="chat-btn" style="background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%);color:#fff;font-weight:600;border:none;" onclick="openChat()">💬 加入聊天室</button>
     <button class="btn btn-secondary" id="voice-btn">🔊 语音播报</button>
+    <span id="user-info" style="font-size: 12px; color: #64748b; white-space: nowrap;"></span>
     <div class="status"><span class="pulse"></span><span id="last-update">实时更新中...</span></div>
   </div>
 </div>

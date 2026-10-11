@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>注册 · 知几察微</title>
+<meta name="description" content="知几察微 jeeseek.top 邀请码注册">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+  background: linear-gradient(135deg, #f0f4f8 0%, #e0e7ef 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  color: #1f2937;
+}
+.card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04);
+  padding: 40px;
+  width: 100%;
+  max-width: 460px;
+}
+.brand { text-align: center; margin-bottom: 28px; }
+.brand .logo { font-size: 36px; font-weight: 800; color: #2563eb; letter-spacing: 1px; }
+.brand .sub { color: #64748b; font-size: 14px; margin-top: 6px; }
+.brand .badge {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.row { display: flex; gap: 10px; }
+.row .form-group { flex: 1; }
+.form-group { margin-bottom: 14px; }
+.form-group label {
+  display: block;
+  font-size: 13px;
+  color: #475569;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.form-group label .req { color: #dc2626; }
+.form-group input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 15px;
+  font-family: inherit;
+  background: #f8fafc;
+  transition: all 0.2s;
+  outline: none;
+}
+.form-group input:focus {
+  border-color: #2563eb;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.form-group .help {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+.btn {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.btn-primary {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  margin-top: 10px;
+}
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.toggle {
+  text-align: center;
+  margin-top: 18px;
+  font-size: 13px;
+  color: #64748b;
+}
+.toggle a {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
+  margin-left: 4px;
+}
+.toggle a:hover { text-decoration: underline; }
+.error {
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 14px;
+  border-left: 3px solid #dc2626;
+  display: none;
+  word-break: break-all;
+}
+.error.show { display: block; }
+.success {
+  background: #f0fdf4;
+  color: #15803d;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 14px;
+  border-left: 3px solid #22c55e;
+  display: none;
+}
+.success.show { display: block; }
+.hint {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.6;
+}
+.first-admin-note {
+  background: #fffbeb;
+  color: #92400e;
+  border-left: 3px solid #f59e0b;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-bottom: 14px;
+  display: none;
+  line-height: 1.6;
+}
+.first-admin-note.show { display: block; }
+.password-strength {
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+.password-strength-bar {
+  height: 100%;
+  width: 0;
+  transition: all 0.3s;
+}
+.password-strength-bar.weak { width: 33%; background: #ef4444; }
+.password-strength-bar.medium { width: 66%; background: #f59e0b; }
+.password-strength-bar.strong { width: 100%; background: #22c55e; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand">
+    <div class="logo">知几察微</div>
+    <div class="sub">jeeseek.top</div>
+    <span class="badge">邀请制注册</span>
+  </div>
+
+  <div class="first-admin-note" id="firstAdminNote">
+    <strong>首位注册者</strong>：你将成为本站管理员，邀请码可留空。
+  </div>
+
+  <div class="error" id="error"></div>
+  <div class="success" id="success"></div>
+
+  <form id="regForm" autocomplete="on">
+    <div class="row">
+      <div class="form-group">
+        <label for="username">用户名 <span class="req">*</span></label>
+        <input type="text" id="username" name="username" required
+               minlength="3" maxlength="32" pattern="[A-Za-z0-9_\-]+"
+               placeholder="花总" autocomplete="username" autofocus>
+        <div class="help">3-32 位 · 字母/数字/下划线/短横</div>
+      </div>
+      <div class="form-group">
+        <label for="display_name">昵称</label>
+        <input type="text" id="display_name" name="display_name"
+               maxlength="64" placeholder="花采蝶" autocomplete="nickname">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="email">邮箱 <span class="req">*</span></label>
+      <input type="email" id="email" name="email" required
+             maxlength="128" placeholder="hua@jeeseek.top" autocomplete="email">
+    </div>
+
+    <div class="form-group">
+      <label for="password">密码 <span class="req">*</span></label>
+      <input type="password" id="password" name="password" required
+             minlength="8" maxlength="128" placeholder="至少 8 位"
+             autocomplete="new-password">
+      <div class="password-strength"><div class="password-strength-bar" id="pwdBar"></div></div>
+      <div class="help">8 位以上 · 建议字母+数字+符号混合</div>
+    </div>
+
+    <div class="form-group">
+      <label for="invite_code">邀请码 <span class="req">*</span></label>
+      <input type="text" id="invite_code" name="invite_code"
+             minlength="8" maxlength="32"
+             placeholder="12 位字母数字（首位注册可留空）" autocomplete="off"
+             style="text-transform: uppercase; font-family: 'SF Mono', Consolas, monospace; letter-spacing: 1px;">
+      <div class="help">没有邀请码？联系现有用户或管理员获取</div>
+    </div>
+
+    <button type="submit" class="btn btn-primary" id="submitBtn">注 册</button>
+  </form>
+
+  <div class="toggle">
+    已有账号？<a href="/login.html">直接登录 →</a>
+  </div>
+
+  <div class="hint">
+    注册即表示同意邀请制社区规则
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const errorEl = $('#error');
+const successEl = $('#success');
+const firstAdminNote = $('#firstAdminNote');
+
+function showError(msg) {
+  errorEl.textContent = msg;
+  errorEl.classList.add('show');
+  successEl.classList.remove('show');
+  errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function showSuccess(msg) {
+  successEl.textContent = msg;
+  successEl.classList.add('show');
+  errorEl.classList.remove('show');
+  successEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function hideMsg() {
+  errorEl.classList.remove('show');
+  successEl.classList.remove('show');
+}
+
+// 已经在登录态？直接跳走
+fetch('/api/auth/me', { credentials: 'include' })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok && d.authenticated) {
+      const next = new URLSearchParams(location.search).get('next') || '/';
+      location.href = next;
+    }
+  })
+  .catch(() => {});
+
+// 检查是否首位注册 → 提示邀请码可留空
+// 通过后端 /api/stats 不暴露，但可以通过"尝试空邀请码注册失败信息"推断
+// 这里用一个简单 trick：访问一个不存在的接口 /api/auth/check-first（暂未实现），或者直接看邀请码字段提示
+// 简单做法：直接显示"首位注册"提示，让用户自己选择填不填；填了错的后端会返回 400
+firstAdminNote.classList.add('show');
+
+// 密码强度指示
+$('#password').addEventListener('input', (e) => {
+  const v = e.target.value;
+  const bar = $('#pwdBar');
+  bar.className = 'password-strength-bar';
+  if (v.length === 0) return;
+  let score = 0;
+  if (v.length >= 8) score++;
+  if (v.length >= 12) score++;
+  if (/[A-Z]/.test(v) && /[a-z]/.test(v)) score++;
+  if (/\d/.test(v)) score++;
+  if (/[^A-Za-z0-9]/.test(v)) score++;
+  if (score <= 2) bar.classList.add('weak');
+  else if (score <= 3) bar.classList.add('medium');
+  else bar.classList.add('strong');
+});
+
+$('#regForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  hideMsg();
+  const btn = $('#submitBtn');
+  btn.disabled = true;
+  const oldText = btn.textContent;
+  btn.textContent = '注册中…';
+
+  const payload = {
+    username: $('#username').value.trim(),
+    email: $('#email').value.trim(),
+    password: $('#password').value,
+    invite_code: $('#invite_code').value.trim().toUpperCase(),
+    display_name: $('#display_name').value.trim(),
+  };
+
+  try {
+    const r = await fetch('/api/auth/register', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) {
+      throw new Error(d.detail || d.error || `HTTP ${r.status}`);
+    }
+    showSuccess(d.user.is_first
+      ? `🎉 欢迎站长！你是首位用户，已自动成为 admin`
+      : `注册成功！欢迎，${d.user.display_name || d.user.username}`);
+    setTimeout(() => {
+      const next = new URLSearchParams(location.search).get('next') || '/';
+      location.href = next;
+    }, 800);
+  } catch (err) {
+    showError(err.message);
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+});
+</script>
+</body>
+</html>
