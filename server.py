@@ -75,7 +75,13 @@ OVERSEAS_SOURCES = [
     {'id': 'reuters-rtr',         'name': '路透社',          'type': 'buzzing', 'urls': ['https://reuters.buzzing.cc/feed.json']},
 ]
 
-LOG_PATH = '/var/log/jeeseek/server.log'
+LOG_PATH = os.getenv('JEESEEK_LOG_PATH', '/var/log/jeeseek/server.log')
+# 容器里 /var/log 可能没写权限 → fallback
+try:
+    Path(LOG_PATH).parent.mkdir(parents=True, exist_ok=True)
+except (OSError, PermissionError):
+    LOG_PATH = '/tmp/jeeseek/server.log'
+    Path(LOG_PATH).parent.mkdir(parents=True, exist_ok=True)
 
 # ──────────── 日志 ────────────
 logging.basicConfig(

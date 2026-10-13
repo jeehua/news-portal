@@ -371,7 +371,7 @@ body {
   } catch (e) {
     // 未登录：跳登录页
     const next = encodeURIComponent(location.pathname + location.search);
-    location.replace('/login.html?next=' + next);
+    location.replace('/static/login.html?next=' + next);
   }
 })();
 
@@ -379,7 +379,7 @@ async function jeeseekLogout(e) {
   e.preventDefault();
   if (!confirm('确定退出登录？')) return;
   try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch(_) {}
-  location.href = '/login.html';
+  location.href = '/static/login.html';
 }
 </script>
 <div class="header">
