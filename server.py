@@ -888,7 +888,7 @@ class RegisterReq(BaseModel):
     username: str = Field(min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_\-]+$")
     email: str = Field(min_length=3, max_length=128)
     password: str = Field(min_length=8, max_length=128)
-    invite_code: str = Field(min_length=8, max_length=32)
+    invite_code: str = Field(default="", max_length=64)  # 首位注册可留空
     display_name: str = Field(default="", max_length=64)
 
 class LoginReq(BaseModel):
