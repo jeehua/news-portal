@@ -330,6 +330,9 @@ document.addEventListener('keypress', e => {
   <div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
     <div style="font-size: 14px; font-weight: 600; color: #475569; margin-bottom: 10px;">创建新邀请码</div>
     <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+      <label style="font-size: 12px; color: #64748b;">自定义码
+        <input type="text" id="iv-code" maxlength="64" placeholder="留空=随机生成" style="margin-left: 4px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 4px; width: 160px; font-size: 13px; font-family: 'SF Mono', Consolas, monospace;">
+      </label>
       <label style="font-size: 12px; color: #64748b;">备注
         <input type="text" id="iv-note" maxlength="128" placeholder="发给某某" style="margin-left: 4px; padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 4px; width: 160px; font-size: 13px;">
       </label>
@@ -360,9 +363,9 @@ document.addEventListener('keypress', e => {
       <h3 style="font-size: 14px; color: #475569; margin-bottom: 10px;">我的邀请码</h3>
       <div style="max-height: 300px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px;">
         <table id="iv-codes-table">
-          <thead><tr><th>邀请码</th><th>使用</th><th>备注</th><th>状态</th></tr></thead>
+          <thead><tr><th>邀请码</th><th>使用</th><th>备注</th><th>状态</th><th>操作</th></tr></thead>
           <tbody id="iv-codes-tbody">
-            <tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px;">加载中…</td></tr>
+            <tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px;">加载中…</td></tr>
           </tbody>
         </table>
       </div>
@@ -385,6 +388,7 @@ document.addEventListener('keypress', e => {
 // 邀请码管理
 async function createInviteCode() {
   const note = document.getElementById('iv-note').value.trim();
+  const code = document.getElementById('iv-code').value.trim();
   const maxUses = parseInt(document.getElementById('iv-max-uses').value);
   const expires = parseInt(document.getElementById('iv-expires').value);
   const resultEl = document.getElementById('iv-create-result');
@@ -395,18 +399,53 @@ async function createInviteCode() {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ note, max_uses: maxUses, expires_in_days: expires }),
+      body: JSON.stringify({ note, max_uses: maxUses, expires_in_days: expires, code }),
     });
     const d = await r.json();
     if (!r.ok || !d.ok) throw new Error(d.detail || d.error || `HTTP ${r.status}`);
     resultEl.innerHTML = '已创建 <code style="background:#f1f5f9;padding:1px 6px;border-radius:3px;font-family:monospace;">' + d.code + '</code> · 剩余 ' + d.remaining_quota;
     resultEl.style.color = '#15803d';
     document.getElementById('iv-note').value = '';
+    document.getElementById('iv-code').value = '';
     loadInviteData();
   } catch (e) {
     resultEl.textContent = e.message;
     resultEl.style.color = '#b91c1c';
   }
+}
+
+async function revokeInviteCode(code) {
+  if (!confirm('确定要撤销邀请码 ' + code + '？撤销后不能恢复。')) return;
+  const r = await fetch('/api/invite/' + encodeURIComponent(code), {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) { alert('撤销失败: ' + (d.detail || d.error || r.status)); return; }
+  loadInviteData();
+}
+
+async function editInviteCode(code) {
+  const newNote = prompt('修改备注 (留空 = 清空备注):', '');
+  if (newNote === null) return;
+  const newMax = prompt('修改最大使用次数 (0 = 不改):', '0');
+  if (newMax === null) return;
+  const newExpires = prompt('修改有效期天数 (0=永久 / -1=不改 / N=N天):', '-1');
+  if (newExpires === null) return;
+  const body = {
+    note: newNote === '' ? '__CLEAR__' : newNote,
+    max_uses: parseInt(newMax) || 0,
+    expires_in_days: parseInt(newExpires),
+  };
+  const r = await fetch('/api/invite/' + encodeURIComponent(code), {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) { alert('修改失败: ' + (d.detail || d.error || r.status)); return; }
+  loadInviteData();
 }
 
 async function loadInviteData() {
@@ -431,16 +470,19 @@ async function loadInviteData() {
     // 邀请码表
     const codesTbody = document.getElementById('iv-codes-tbody');
     if (codesData.codes.length === 0) {
-      codesTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px;">还没有邀请码，点上面"创建"</td></tr>';
+      codesTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px;">还没有邀请码，点上面"创建"</td></tr>';
     } else {
       codesTbody.innerHTML = codesData.codes.map(c => {
         const statusColor = c.status === 'active' ? '#15803d' : (c.status === 'exhausted' ? '#b45309' : '#dc2626');
         const statusText = c.status === 'active' ? '有效' : (c.status === 'exhausted' ? '已用完' : '已撤销');
+        const canRevoke = c.status === 'active' ? '<button onclick="revokeInviteCode(\'' + c.code + '\')" style="background:#fee2e2;color:#b91c1c;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;margin-right:4px;">撤销</button>' : '';
+        const editBtn = '<button onclick="editInviteCode(\'' + c.code + '\')" style="background:#dbeafe;color:#1e40af;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;">改</button>';
         return '<tr>' +
           '<td><code style="background:#f1f5f9;padding:1px 6px;border-radius:3px;font-family:monospace;font-size:12px;">' + c.code + '</code></td>' +
           '<td>' + c.use_count + ' / ' + c.max_uses + '</td>' +
           '<td style="color:#64748b;">' + (c.note || '—') + '</td>' +
           '<td><span style="color:' + statusColor + ';font-weight:600;">' + statusText + '</span></td>' +
+          '<td>' + canRevoke + editBtn + '</td>' +
         '</tr>';
       }).join('');
     }

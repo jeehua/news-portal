@@ -298,14 +298,16 @@ def consume_invite_code(code: str, used_by_user_id: int) -> bool:
         conn.close()
 
 
-def create_invite_code(created_by: int, max_uses: int = 1, note: str = "", expires_in_days: Optional[int] = None) -> str:
-    """创建邀请码；返回 code 字符串"""
-    code = generate_invite_code()
-    # 极少概率冲突，重试
-    for _ in range(5):
-        if not get_invite_code(code):
-            break
+def create_invite_code(created_by: int, max_uses: int = 1, note: str = "", expires_in_days: Optional[int] = None, code_value: str = "") -> Optional[str]:
+    """创建邀请码；返回 code 字符串。若 code_value 给了就用具体值（管理员手动设定）；否则自动生成。冲突返回 None。"""
+    if code_value and code_value.strip():
+        code = code_value.strip()
+    else:
         code = generate_invite_code()
+        for _ in range(5):
+            if not get_invite_code(code):
+                break
+            code = generate_invite_code()
     expires_at = int(time.time()) + expires_in_days * 86400 if expires_in_days else None
     conn = connect()
     cur = conn.cursor()
@@ -322,6 +324,63 @@ def create_invite_code(created_by: int, max_uses: int = 1, note: str = "", expir
             )
         conn.commit()
         return code
+    except Exception as e:
+        conn.rollback()
+        if "UNIQUE" in str(e) or "unique" in str(e) or "duplicate" in str(e).lower():
+            return None
+        raise
+    finally:
+        conn.close()
+
+
+def update_invite_code(code: str, max_uses: Optional[int] = None, note: Optional[str] = None, expires_in_days: Optional[int] = None, status: Optional[str] = None) -> bool:
+    """更新邀请码字段。只更新传入的非 None 字段。
+    expires_in_days: None = 不改；0 = 永久；>0 = N 天后过期
+    status: 'active' / 'revoked'
+    """
+    fields = []
+    values = []
+    placeholder = "%s" if USE_POSTGRES else "?"
+    if max_uses is not None:
+        fields.append(f"max_uses={placeholder}")
+        values.append(max_uses)
+    if note is not None:
+        fields.append(f"note={placeholder}")
+        values.append(note)
+    if expires_in_days is not None:
+        fields.append(f"expires_at={placeholder}")
+        if expires_in_days == 0:
+            values.append(None)
+        else:
+            values.append(int(time.time()) + expires_in_days * 86400)
+    if status is not None:
+        fields.append(f"status={placeholder}")
+        values.append(status)
+    if not fields:
+        return False
+    values.append(code)
+    sql = f"UPDATE invite_codes SET {', '.join(fields)} WHERE code={placeholder}"
+    conn = connect()
+    cur = conn.cursor()
+    try:
+        cur.execute(sql, values)
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def delete_invite_code(code: str) -> bool:
+    """软删除邀请码：把 status 设为 'revoked'（保留历史）"""
+    conn = connect()
+    cur = conn.cursor()
+    try:
+        if USE_POSTGRES:
+            cur.execute("UPDATE invite_codes SET status='revoked' WHERE code=%s", (code,))
+        else:
+            cur.execute("UPDATE invite_codes SET status='revoked' WHERE code=?", (code,))
+        conn.commit()
+        return cur.rowcount > 0
     finally:
         conn.close()
 

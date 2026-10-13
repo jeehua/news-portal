@@ -899,16 +899,18 @@ class CreateInviteReq(BaseModel):
     max_uses: int = Field(default=1, ge=1, le=50)
     note: str = Field(default="", max_length=128)
     expires_in_days: int = Field(default=0, ge=0, le=365)  # 0 = 永久
+    code: str = Field(default="", max_length=64)  # 自定义邀请码（可选）
 
-# 不需要登录的路径前缀/精确路径
+class UpdateInviteReq(BaseModel):
+    max_uses: int = Field(default=0, ge=0, le=50)  # 0 = 不改
+    note: str = Field(default="", max_length=128)  # 空串 = 保持原值 (除非显式传 __CLEAR__)
+    expires_in_days: int = Field(default=-1, ge=-1, le=365)  # -1 = 不改；0 = 永久；>0 = N 天
+    status: str = Field(default="", max_length=16)  # 'active' / 'revoked' / '' = 不改
+
+# 不需要登录的路径前缀/精确路径（v5.1 全部锁）
 AUTH_PUBLIC_PATHS = (
-    "/api/auth/",       # 注册/登录/登出/me
-    "/api/stats",       # 公开 stats 计数器
-    "/api/about",       # 公开 about
-    "/api/news",        # 公开新闻（CF Worker 已可匿名；保持一致）
-    "/healthz",         # 健康检查
-    "/static/",         # 静态资源
-    "/events",          # SSE
+    "/api/auth/",       # 注册/登录/登出/me - 唯一对外的鉴权入口
+    "/static/",         # 静态资源：login.html / register.html / logo 等
     "/favicon.ico",
     "/robots.txt",
 )
@@ -1593,9 +1595,66 @@ async def api_invite_create(req: CreateInviteReq, request: Request):
         max_uses=req.max_uses,
         note=req.note,
         expires_in_days=req.expires_in_days if req.expires_in_days > 0 else None,
+        code_value=req.code.strip() if req.code and req.code.strip() else "",
     )
-    log.info(f"[invite] uid={user['id']} 创建邀请码 {code} (max_uses={req.max_uses})")
+    if not code:
+        # 回滚 invite_quota
+        conn2 = db.connect()
+        cur2 = conn2.cursor()
+        try:
+            if db.USE_POSTGRES:
+                cur2.execute("UPDATE users SET invite_quota=invite_quota+1 WHERE id=%s", (user["id"],))
+            else:
+                cur2.execute("UPDATE users SET invite_quota=invite_quota+1 WHERE id=?", (user["id"],))
+            conn2.commit()
+        finally:
+            conn2.close()
+        raise HTTPException(400, f"邀请码 '{req.code}' 已存在，请换个名字")
+    log.info(f"[invite] uid={user['id']} 创建邀请码 {code} (max_uses={req.max_uses}, custom={bool(req.code)})")
     return {"ok": True, "code": code, "remaining_quota": user["invite_quota"] - 1}
+
+
+@app.put("/api/invite/{code}")
+async def api_invite_update(code: str, req: UpdateInviteReq, request: Request):
+    """更新邀请码参数：max_uses / note / expires_in_days / status"""
+    user = request.state.user
+    existing = auth.get_invite_code(code)
+    if not existing:
+        raise HTTPException(404, "邀请码不存在")
+    if existing["created_by"] != user["id"] and user["role"] != "admin":
+        raise HTTPException(403, "只能修改自己创建的邀请码")
+    # 把 sentinel 值转成 None
+    new_max = req.max_uses if req.max_uses > 0 else None
+    new_note = req.note if req.note != "" else None  # 空串 = 不改；__CLEAR__ = 清空
+    if req.note == "__CLEAR__":
+        new_note = ""
+    new_expires = req.expires_in_days if req.expires_in_days >= 0 else None
+    new_status = req.status if req.status else None
+    ok = auth.update_invite_code(
+        code,
+        max_uses=new_max,
+        note=new_note,
+        expires_in_days=new_expires,
+        status=new_status,
+    )
+    if not ok:
+        raise HTTPException(500, "更新失败")
+    return {"ok": True, "code": code}
+
+
+@app.delete("/api/invite/{code}")
+async def api_invite_delete(code: str, request: Request):
+    """软删除邀请码（status 改为 revoked，保留历史）"""
+    user = request.state.user
+    existing = auth.get_invite_code(code)
+    if not existing:
+        raise HTTPException(404, "邀请码不存在")
+    if existing["created_by"] != user["id"] and user["role"] != "admin":
+        raise HTTPException(403, "只能删除自己创建的邀请码")
+    ok = auth.delete_invite_code(code)
+    if not ok:
+        raise HTTPException(500, "删除失败")
+    return {"ok": True, "code": code, "status": "revoked"}
 
 
 @app.get("/api/invite/my-codes")

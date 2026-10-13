@@ -216,9 +216,9 @@ body {
     <div class="form-group">
       <label for="invite_code">邀请码 <span class="req">*</span></label>
       <input type="text" id="invite_code" name="invite_code"
-             minlength="8" maxlength="32"
-             placeholder="12 位字母数字（首位注册可留空）" autocomplete="off"
-             style="text-transform: uppercase; font-family: 'SF Mono', Consolas, monospace; letter-spacing: 1px;">
+             minlength="3" maxlength="64"
+             placeholder="管理员提供的邀请码（区分大小写）" autocomplete="off"
+             style="font-family: 'SF Mono', Consolas, monospace; letter-spacing: 1px;">
       <div class="help">没有邀请码？联系现有用户或管理员获取</div>
     </div>
 
@@ -303,7 +303,7 @@ $('#regForm').addEventListener('submit', async (e) => {
     username: $('#username').value.trim(),
     email: $('#email').value.trim(),
     password: $('#password').value,
-    invite_code: $('#invite_code').value.trim().toUpperCase(),
+    invite_code: $('#invite_code').value.trim(),
     display_name: $('#display_name').value.trim(),
   };
 
