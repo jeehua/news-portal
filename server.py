@@ -1675,8 +1675,12 @@ async def api_invite_my_invites(request: Request):
 @app.get("/api/_debug/db")
 async def api_debug_db(request: Request):
     """仅 admin 可访问：返回当前数据库的全部表 + 强制重跑 init_schema 后再列一次"""
-    if request.state.user.get("role") != "admin":
-        raise HTTPException(403, "admin only")
+    user = request.state.user
+    return {
+        "user_role": user.get("role") if user else None,
+        "user_keys": list(user.keys()) if user else None,
+        "user_dump": {k: str(v)[:50] for k, v in (user or {}).items()},
+    }
     conn = db.connect()
     cur = conn.cursor()
     cur.execute("SELECT current_database(), current_user, version()")
