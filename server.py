@@ -1671,6 +1671,54 @@ async def api_invite_my_invites(request: Request):
     return {"ok": True, "invited": invited, "remaining_quota": user["invite_quota"]}
 
 
+# v5.1 临时 debug 路由：返回当前 DB 的全部表 + 试 create invite 看真错
+@app.get("/api/_debug/db")
+async def api_debug_db(request: Request):
+    """仅 admin 可访问：返回当前数据库的全部表 + 强制重跑 init_schema 后再列一次"""
+    if request.state.user.get("role") != "admin":
+        raise HTTPException(403, "admin only")
+    conn = db.connect()
+    cur = conn.cursor()
+    cur.execute("SELECT current_database(), current_user, version()")
+    info = cur.fetchone()
+    # Postgres: information_schema
+    cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name")
+    pg_tables = [r[0] for r in cur.fetchall()]
+    # 强制再 init_schema 一次
+    try:
+        db.init_schema()
+        rerun_ok = True
+        rerun_err = None
+    except Exception as e:
+        import traceback
+        rerun_ok = False
+        rerun_err = traceback.format_exc()
+    # 再列一次
+    cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name")
+    pg_tables_after = [r[0] for r in cur.fetchall()]
+    conn.close()
+    return {
+        "db_info": list(info) if info else None,
+        "pg_tables_before": pg_tables,
+        "pg_tables_after": pg_tables_after,
+        "rerun_ok": rerun_ok,
+        "rerun_err": rerun_err,
+    }
+
+
+@app.get("/api/_debug/invite-try")
+async def api_debug_invite_try(request: Request):
+    """仅 admin：直接调 create_invite_code，看真错"""
+    if request.state.user.get("role") != "admin":
+        raise HTTPException(403, "admin only")
+    import traceback
+    try:
+        code = auth.create_invite_code(created_by=request.state.user["id"], code_value="LongWay6124", max_uses=1, note="花总指定")
+        return {"ok": True, "code": code}
+    except Exception as e:
+        return {"ok": False, "err": str(e), "trace": traceback.format_exc()}
+
+
 if __name__ == '__main__':
     import uvicorn
     uvicorn.run(app, host=LISTEN_HOST, port=LISTEN_PORT, log_level='info')
