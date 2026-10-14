@@ -976,6 +976,54 @@ async def on_startup():
         log.info(f'[jeeseek.startup] translator 状态: enabled={stats.get("enabled")} cached={stats.get("cached")}')
     except Exception as e:
         log.warning(f'[jeeseek.startup] translator 状态读取失败: {e}')
+
+    # v5.2: 启动时自动建码（花总指定的 LongWay6124）
+    # - Postgres 模式：已存在就跳过（UNIQUE 冲突被 auth.create_invite_code 吞）
+    # - SQLite 模式：deploy 后 DB 重置 → 启动时自动重建（防今天是玩具）
+    # 永久有效，因为花总可以走 PUT /api/invite/{code} 修改次数/有效期/备注
+    try:
+        import bcrypt as _bcrypt
+        # 直接写库建 system 账号 (admin, invite_quota=0, 不能登录)
+        system_user = auth.get_user_by_username('system')
+        if not system_user:
+            try:
+                _ph = _bcrypt.hashpw(b'__system_no_login__', _bcrypt.gensalt()).decode()
+                conn = db.connect()
+                cur = conn.cursor()
+                if db.USE_POSTGRES:
+                    cur.execute(
+                        "INSERT INTO users (username, email, password_hash, display_name, role, invite_quota) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (username) DO NOTHING",
+                        ('system', 'system@jeeseek.local', _ph, '🤖 System', 'admin', 0),
+                    )
+                else:
+                    cur.execute(
+                        "INSERT OR IGNORE INTO users (username, email, password_hash, display_name, role, invite_quota) VALUES (?, ?, ?, ?, ?, ?)",
+                        ('system', 'system@jeeseek.local', _ph, '🤖 System', 'admin', 0),
+                    )
+                conn.commit()
+                conn.close()
+                log.info('[jeeseek.startup] 已建 system 账号 (admin, invite_quota=0)')
+            except Exception as e:
+                log.warning(f'[jeeseek.startup] 建 system 账号失败: {e}')
+        # 重读 system 账号
+        system_user = auth.get_user_by_username('system')
+        if system_user:
+            try:
+                code = auth.create_invite_code(
+                    created_by=system_user['id'],
+                    code_value='LongWay6124',
+                    max_uses=999,
+                    note='花总指定长期邀请码',
+                )
+                if code:
+                    log.info(f'[jeeseek.startup] 自动建码 LongWay6124 成功 (uid={system_user["id"]})')
+                else:
+                    log.info(f'[jeeseek.startup] LongWay6124 已存在，跳过')
+            except Exception as e:
+                log.warning(f'[jeeseek.startup] LongWay6124 创建失败: {e}')
+    except Exception as e:
+        log.warning(f'[jeeseek.startup] 自动建码逻辑失败（不影响 server 启动）: {e}')
+
     asyncio.create_task(fetch_loop())
 
     # v4: 30 秒后预热 AI 报告缓存
@@ -1669,58 +1717,6 @@ async def api_invite_my_invites(request: Request):
     user = request.state.user
     invited = auth.list_users_i_invited(user["id"])
     return {"ok": True, "invited": invited, "remaining_quota": user["invite_quota"]}
-
-
-# v5.1 临时 debug 路由：返回当前 DB 的全部表 + 试 create invite 看真错
-@app.get("/api/_debug/db")
-async def api_debug_db(request: Request):
-    """仅 admin 可访问：返回当前数据库的全部表 + 强制重跑 init_schema 后再列一次"""
-    user = request.state.user
-    return {
-        "user_role": user.get("role") if user else None,
-        "user_keys": list(user.keys()) if user else None,
-        "user_dump": {k: str(v)[:50] for k, v in (user or {}).items()},
-    }
-    conn = db.connect()
-    cur = conn.cursor()
-    cur.execute("SELECT current_database(), current_user, version()")
-    info = cur.fetchone()
-    # Postgres: information_schema
-    cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name")
-    pg_tables = [r[0] for r in cur.fetchall()]
-    # 强制再 init_schema 一次
-    try:
-        db.init_schema()
-        rerun_ok = True
-        rerun_err = None
-    except Exception as e:
-        import traceback
-        rerun_ok = False
-        rerun_err = traceback.format_exc()
-    # 再列一次
-    cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name")
-    pg_tables_after = [r[0] for r in cur.fetchall()]
-    conn.close()
-    return {
-        "db_info": list(info) if info else None,
-        "pg_tables_before": pg_tables,
-        "pg_tables_after": pg_tables_after,
-        "rerun_ok": rerun_ok,
-        "rerun_err": rerun_err,
-    }
-
-
-@app.get("/api/_debug/invite-try")
-async def api_debug_invite_try(request: Request):
-    """仅 admin：直接调 create_invite_code，看真错"""
-    if request.state.user.get("role") != "admin":
-        raise HTTPException(403, "admin only")
-    import traceback
-    try:
-        code = auth.create_invite_code(created_by=request.state.user["id"], code_value="LongWay6124", max_uses=1, note="花总指定")
-        return {"ok": True, "code": code}
-    except Exception as e:
-        return {"ok": False, "err": str(e), "trace": traceback.format_exc()}
 
 
 if __name__ == '__main__':
