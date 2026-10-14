@@ -20,53 +20,6 @@ from concurrent.futures import ThreadPoolExecutor
 import db
 import auth  # jeeseek 邀请制鉴权（见 auth.py）
 
-# v5.3c build marker — 验证 v5.3c 部署的 server.py 真生效
-print('=== JEESEEK BUILD v5.3c 2026-10-14 12:50 ===', flush=True)
-print('  LISTEN_HOST:', os.getenv('LISTEN_HOST', '0.0.0.0'), flush=True)
-print('  LISTEN_PORT:', os.getenv('PORT', os.getenv('LISTEN_PORT', '8080')), flush=True)
-print('  DATABASE_URL exists:', bool(os.getenv('DATABASE_URL')), flush=True)
-print('  __file__:', __file__, flush=True)
-print('  os.listdir(/app):', os.listdir('/app') if os.path.exists('/app') else 'NO /app', flush=True)
-# v5.3f debug: 读 /app/server.py 第 1 行 + 末尾行, 看实际加载哪个版本
-try:
-    with open('/app/server.py', 'rb') as f:
-        head = f.read(200)
-        f.seek(0, 2)
-        size = f.tell()
-    print('  /app/server.py size:', size, 'bytes, head[:60]:', head[:60], flush=True)
-except Exception as e:
-    print('  /app/server.py read FAIL:', repr(e), flush=True)
-
-
-# v5.3e BUILD MARKER ENDPOINT — 验证 v5.3e 是否真生效
-# v5.2.2 老代码无此 endpoint, 返 404
-# v5.3e 部署后返 build 信息 + app 文件列表
-@app.get('/api/__build_e__')
-async def build_marker_e():
-    import os as _os
-    info = {
-        'build': 'v5.3e',
-        'cwd': _os.getcwd(),
-        'file': __file__,
-        'app_files': sorted(_os.listdir('/app'))[:30] if _os.path.exists('/app') else 'NO /app',
-        'static_files': sorted(_os.listdir('/app/static'))[:20] if _os.path.exists('/app/static') else 'NO /app/static',
-    }
-    # 读 /app/server.py 第 1 行 + 行数
-    try:
-        with open('/app/server.py', 'rb') as f:
-            head = f.read(300)
-        info['server_py_head'] = head[:200].decode('utf-8', errors='replace')
-    except Exception as e:
-        info['server_py_read_error'] = repr(e)
-    return info
-
-
-# v5.3f /__version__ 路由 — v5.2.2 老代码无此路由
-@app.get('/__version__')
-async def version_marker():
-    return {'version': 'v5.3f', 'ts': '2026-10-14 13:05'}
-
-
 # 腾讯云机器翻译(实时翻译海外资讯)
 try:
     from translator import translate_title as _translate_title, get_cache_stats as _translate_stats
@@ -1016,28 +969,6 @@ async def stats_middleware(request: Request, call_next):
 
 @app.on_event('startup')
 async def on_startup():
-    import traceback as _tb_v53h
-    try:
-        with open('/tmp/jeeseek_startup.log', 'w') as _f:
-            _f.write(f'[{_tb_v53h.format_stack()[-200:]}] on_startup ENTERED\n')
-    except Exception:
-        pass
-    log.info('[jeeseek.startup] >>> on_startup 进入 (v5.3h try/except wrapped)')
-    try:
-        _do_on_startup_body()
-        with open('/tmp/jeeseek_startup.log', 'a') as _f:
-            _f.write('SUCCESS: on_startup body finished\n')
-    except Exception as _e:
-        import traceback as _tb
-        global _STARTUP_ERROR, _STARTUP_TRACE
-        _STARTUP_ERROR = repr(_e)
-        _STARTUP_TRACE = _tb.format_exc()
-        with open('/tmp/jeeseek_startup.log', 'a') as _f:
-            _f.write(f'\nFATAL: {_e}\n{_tb.format_exc()}\n')
-        log.error(f'[jeeseek.startup] on_startup FATAL: {_e!r}\n{_tb.format_exc()}')
-        # 不 raise - 让 server 继续启动, on_startup 失败不阻塞 API
-
-def _do_on_startup_body():
     log.info('[jeeseek.startup] >>> on_startup 进入 (v5.2.1-debug)')
     try:
         _init_stats_db()
