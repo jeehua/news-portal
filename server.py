@@ -28,6 +28,20 @@ print('  DATABASE_URL exists:', bool(os.getenv('DATABASE_URL')), flush=True)
 print('  __file__:', __file__, flush=True)
 print('  os.listdir(/app):', os.listdir('/app') if os.path.exists('/app') else 'NO /app', flush=True)
 
+
+# v5.3e BUILD MARKER ENDPOINT — 验证 v5.3e 是否真生效
+# v5.2.2 老代码无此 endpoint, 返 404
+# v5.3e 部署后返 build 信息 + app 文件列表
+@app.get('/api/__build_e__')
+async def build_marker_e():
+    return {
+        'build': 'v5.3e',
+        'cwd': os.getcwd(),
+        'file': __file__,
+        'app_files': sorted(os.listdir('/app'))[:30] if os.path.exists('/app') else 'NO /app',
+        'static_files': sorted(os.listdir('/app/static'))[:20] if os.path.exists('/app/static') else 'NO /app/static',
+    }
+
 # 腾讯云机器翻译(实时翻译海外资讯)
 try:
     from translator import translate_title as _translate_title, get_cache_stats as _translate_stats
