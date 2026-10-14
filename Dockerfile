@@ -21,8 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # v5.3g /__error__ endpoint: 2026-10-14 13:10 — v5.3f 返 503 数据恢复页, 必是 on_startup 抛错, 抓 traceback
 # v5.3h trace file: 2026-10-14 13:15 — on_startup 异常写 /tmp/jeeseek_startup.log, /__startup_trace__ 读
 # v5.3.1 clean revert: 2026-10-14 13:25 — 回到 v5.3 干净版, 去掉 v5.3e~v5.3h 调试路由, 验证 v5.3 核心改动
-ENV JEESEEK_BUILD_VERSION=v5.3.1
-RUN echo "=== v5.3.1 clean revert 2026-10-14 13:25 ==="
+# v5.4 full revert: 2026-10-14 13:30 — 花总不要注册制, 完整回退到 v5.2.2 干净版
+ENV JEESEEK_BUILD_VERSION=v5.4
+RUN echo "=== v5.4 full revert to v5.2.2 2026-10-14 13:30 ==="
 COPY . .
 
 # 数据持久化目录（fly.io 使用 volumes / Zeabur 临时盘）
