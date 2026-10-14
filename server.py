@@ -969,7 +969,15 @@ async def stats_middleware(request: Request, call_next):
 
 @app.on_event('startup')
 async def on_startup():
-    _init_stats_db()
+    log.info('[jeeseek.startup] >>> on_startup 进入 (v5.2.1-debug)')
+    try:
+        _init_stats_db()
+        log.info(f'[jeeseek.startup] _init_stats_db 完成, USE_POSTGRES={db.USE_POSTGRES}')
+    except Exception as e:
+        log.error(f'[jeeseek.startup] _init_stats_db 失败: {e!r}')
+        import traceback
+        log.error(f'[jeeseek.startup] _init_stats_db traceback: {traceback.format_exc()}')
+        return  # 关键：别再走下面，避免后续崩溃
     # v4: 启动时打印 translator cache 状态
     try:
         stats = _translate_stats()
@@ -977,7 +985,7 @@ async def on_startup():
     except Exception as e:
         log.warning(f'[jeeseek.startup] translator 状态读取失败: {e}')
 
-    # v5.2: 启动时自动建码（花总指定的 LongWay6124）
+    # v5.2.1: 启动时自动建码（花总指定的 LongWay6124）
     # - Postgres 模式：已存在就跳过（UNIQUE 冲突被 auth.create_invite_code 吞）
     # - SQLite 模式：deploy 后 DB 重置 → 启动时自动重建（防今天是玩具）
     # 永久有效，因为花总可以走 PUT /api/invite/{code} 修改次数/有效期/备注
@@ -1024,7 +1032,12 @@ async def on_startup():
     except Exception as e:
         log.warning(f'[jeeseek.startup] 自动建码逻辑失败（不影响 server 启动）: {e}')
 
-    asyncio.create_task(fetch_loop())
+    log.info('[jeeseek.startup] <<< on_startup 即将创建 fetch_loop task')
+    try:
+        asyncio.create_task(fetch_loop())
+        log.info('[jeeseek.startup] fetch_loop task 创建成功')
+    except Exception as e:
+        log.error(f'[jeeseek.startup] fetch_loop 创建失败: {e!r}')
 
     # v4: 30 秒后预热 AI 报告缓存
     async def _warmup_ai():
