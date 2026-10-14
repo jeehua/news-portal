@@ -66,6 +66,40 @@ async def build_marker_e():
 async def version_marker():
     return {'version': 'v5.3f', 'ts': '2026-10-14 13:05'}
 
+
+# v5.3g: 在 on_startup 失败时存 traceback 到全局, /__error__ 路由读出来
+# 这是 v5.3f /__version__ 返 503 + 数据恢复页 的根因排查
+_STARTUP_ERROR = None
+_STARTUP_TRACE = None
+
+orig_on_startup = on_startup
+
+async def on_startup_g():
+    global _STARTUP_ERROR, _STARTUP_TRACE
+    import traceback as _tb
+    try:
+        await orig_on_startup()
+    except Exception as e:
+        _STARTUP_ERROR = repr(e)
+        _STARTUP_TRACE = _tb.format_exc()
+        log.error('[jeeseek.startup] on_startup FATAL: %s\n%s', e, _STARTUP_TRACE)
+        # 不 raise — 让 server 继续启动, 但记录错误
+
+app.router.on_startup = [on_startup_g]
+
+
+@app.get('/__error__')
+async def error_marker():
+    return JSONResponse({
+        'startup_error': _STARTUP_ERROR,
+        'startup_trace': _STARTUP_TRACE,
+        'cwd': os.getcwd(),
+        'file': __file__,
+        'app_files': sorted(os.listdir('/app'))[:30] if os.path.exists('/app') else 'NO /app',
+        'static_files': sorted(os.listdir('/app/static'))[:20] if os.path.exists('/app/static') else 'NO /app/static',
+    })
+
+
 # 腾讯云机器翻译(实时翻译海外资讯)
 try:
     from translator import translate_title as _translate_title, get_cache_stats as _translate_stats
