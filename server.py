@@ -20,6 +20,12 @@ from concurrent.futures import ThreadPoolExecutor
 import db
 import auth  # jeeseek 邀请制鉴权（见 auth.py）
 
+# v5.3c build marker — 验证 v5.3c 部署的 server.py 真生效
+print('=== JEESEEK BUILD v5.3c 2026-10-14 12:50 ===', flush=True)
+print('  LISTEN_HOST:', os.getenv('LISTEN_HOST', '0.0.0.0'), flush=True)
+print('  LISTEN_PORT:', os.getenv('PORT', os.getenv('LISTEN_PORT', '8080')), flush=True)
+print('  DATABASE_URL exists:', bool(os.getenv('DATABASE_URL')), flush=True)
+
 # 腾讯云机器翻译(实时翻译海外资讯)
 try:
     from translator import translate_title as _translate_title, get_cache_stats as _translate_stats
