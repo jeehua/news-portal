@@ -15,8 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 代码
 # v5.3 cache-bust: 2026-10-14 12:34 — 强破 Render cached image layer, 確保新 server.py 被 COPY 进 image
 # v5.3c cache-bust: 2026-10-14 12:50 — 加了 ENV 标记 + 在 server.py 顶层 print 验证
-ENV JEESEEK_BUILD_VERSION=v5.3c
-RUN echo "=== v5.3c build marker 2026-10-14 12:50 ==="
+# v5.3d debug: 2026-10-14 12:55 — 在 server.py 加 os.listdir(/app) 查实际加载代码
+ENV JEESEEK_BUILD_VERSION=v5.3d
+RUN echo "=== v5.3d debug build marker 2026-10-14 12:55 ==="
 COPY . .
 
 # 数据持久化目录（fly.io 使用 volumes / Zeabur 临时盘）

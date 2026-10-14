@@ -25,6 +25,8 @@ print('=== JEESEEK BUILD v5.3c 2026-10-14 12:50 ===', flush=True)
 print('  LISTEN_HOST:', os.getenv('LISTEN_HOST', '0.0.0.0'), flush=True)
 print('  LISTEN_PORT:', os.getenv('PORT', os.getenv('LISTEN_PORT', '8080')), flush=True)
 print('  DATABASE_URL exists:', bool(os.getenv('DATABASE_URL')), flush=True)
+print('  __file__:', __file__, flush=True)
+print('  os.listdir(/app):', os.listdir('/app') if os.path.exists('/app') else 'NO /app', flush=True)
 
 # 腾讯云机器翻译(实时翻译海外资讯)
 try:
