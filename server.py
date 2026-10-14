@@ -27,6 +27,15 @@ print('  LISTEN_PORT:', os.getenv('PORT', os.getenv('LISTEN_PORT', '8080')), flu
 print('  DATABASE_URL exists:', bool(os.getenv('DATABASE_URL')), flush=True)
 print('  __file__:', __file__, flush=True)
 print('  os.listdir(/app):', os.listdir('/app') if os.path.exists('/app') else 'NO /app', flush=True)
+# v5.3f debug: 读 /app/server.py 第 1 行 + 末尾行, 看实际加载哪个版本
+try:
+    with open('/app/server.py', 'rb') as f:
+        head = f.read(200)
+        f.seek(0, 2)
+        size = f.tell()
+    print('  /app/server.py size:', size, 'bytes, head[:60]:', head[:60], flush=True)
+except Exception as e:
+    print('  /app/server.py read FAIL:', repr(e), flush=True)
 
 
 # v5.3e BUILD MARKER ENDPOINT — 验证 v5.3e 是否真生效
@@ -34,13 +43,28 @@ print('  os.listdir(/app):', os.listdir('/app') if os.path.exists('/app') else '
 # v5.3e 部署后返 build 信息 + app 文件列表
 @app.get('/api/__build_e__')
 async def build_marker_e():
-    return {
+    import os as _os
+    info = {
         'build': 'v5.3e',
-        'cwd': os.getcwd(),
+        'cwd': _os.getcwd(),
         'file': __file__,
-        'app_files': sorted(os.listdir('/app'))[:30] if os.path.exists('/app') else 'NO /app',
-        'static_files': sorted(os.listdir('/app/static'))[:20] if os.path.exists('/app/static') else 'NO /app/static',
+        'app_files': sorted(_os.listdir('/app'))[:30] if _os.path.exists('/app') else 'NO /app',
+        'static_files': sorted(_os.listdir('/app/static'))[:20] if _os.path.exists('/app/static') else 'NO /app/static',
     }
+    # 读 /app/server.py 第 1 行 + 行数
+    try:
+        with open('/app/server.py', 'rb') as f:
+            head = f.read(300)
+        info['server_py_head'] = head[:200].decode('utf-8', errors='replace')
+    except Exception as e:
+        info['server_py_read_error'] = repr(e)
+    return info
+
+
+# v5.3f /__version__ 路由 — v5.2.2 老代码无此路由
+@app.get('/__version__')
+async def version_marker():
+    return {'version': 'v5.3f', 'ts': '2026-10-14 13:05'}
 
 # 腾讯云机器翻译(实时翻译海外资讯)
 try:

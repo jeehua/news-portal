@@ -17,8 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # v5.3c cache-bust: 2026-10-14 12:50 — 加了 ENV 标记 + 在 server.py 顶层 print 验证
 # v5.3d debug: 2026-10-14 12:55 — 在 server.py 加 os.listdir(/app) 查实际加载代码
 # v5.3e marker endpoint: 2026-10-14 13:00 — 加 /api/__build_e__ 路由, v5.2.2 老代码无此路由
-ENV JEESEEK_BUILD_VERSION=v5.3e
-RUN echo "=== v5.3e marker endpoint build 2026-10-14 13:00 ==="
+# v5.3f dump /app/server.py 头部: 2026-10-14 13:05 — 揭晓 Render 持久化 cache 真凶
+ENV JEESEEK_BUILD_VERSION=v5.3f
+RUN echo "=== v5.3f dump server.py head 2026-10-14 13:05 ==="
 COPY . .
 
 # 数据持久化目录（fly.io 使用 volumes / Zeabur 临时盘）
