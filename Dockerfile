@@ -13,6 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 代码
+# v5.3 cache-bust: 2026-10-14 12:34 — 强破 Render cached image layer, 確保新 server.py 被 COPY 进 image
 COPY . .
 
 # 数据持久化目录（fly.io 使用 volumes / Zeabur 临时盘）
