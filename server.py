@@ -985,52 +985,65 @@ async def on_startup():
     except Exception as e:
         log.warning(f'[jeeseek.startup] translator 状态读取失败: {e}')
 
-    # v5.2.1: 启动时自动建码（花总指定的 LongWay6124）
-    # - Postgres 模式：已存在就跳过（UNIQUE 冲突被 auth.create_invite_code 吞）
-    # - SQLite 模式：deploy 后 DB 重置 → 启动时自动重建（防今天是玩具）
-    # 永久有效，因为花总可以走 PUT /api/invite/{code} 修改次数/有效期/备注
+    # v5.2.2: 启动时自动建 system 账号 + LongWay6124 邀请码
+    # 设计：所有异常 log.error 不吞；不依赖 _init_stats_db 跑成功
+    log.info('[jeeseek.startup] >>> 准备建 system 账号 + LongWay6124')
     try:
-        import bcrypt as _bcrypt
-        # 直接写库建 system 账号 (admin, invite_quota=0, 不能登录)
+        # 1) 确保 system 账号存在 (用 bcrypt 在本函数内 hash, 不依赖 auth.get_user_by_username 失败)
         system_user = auth.get_user_by_username('system')
         if not system_user:
+            import bcrypt as _bcrypt
+            _ph = _bcrypt.hashpw(b'__system_no_login__', _bcrypt.gensalt()).decode()
+            conn = db.connect()
+            cur = conn.cursor()
             try:
-                _ph = _bcrypt.hashpw(b'__system_no_login__', _bcrypt.gensalt()).decode()
-                conn = db.connect()
-                cur = conn.cursor()
                 if db.USE_POSTGRES:
                     cur.execute(
-                        "INSERT INTO users (username, email, password_hash, display_name, role, invite_quota) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (username) DO NOTHING",
-                        ('system', 'system@jeeseek.local', _ph, '🤖 System', 'admin', 0),
+                        "INSERT INTO users (username, email, password_hash, display_name, role, invite_quota) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (username) DO NOTHING RETURNING id",
+                        ('system', 'system@jeeseek.local', _ph, 'System', 'admin', 0),
                     )
                 else:
                     cur.execute(
                         "INSERT OR IGNORE INTO users (username, email, password_hash, display_name, role, invite_quota) VALUES (?, ?, ?, ?, ?, ?)",
-                        ('system', 'system@jeeseek.local', _ph, '🤖 System', 'admin', 0),
+                        ('system', 'system@jeeseek.local', _ph, 'System', 'admin', 0),
                     )
                 conn.commit()
-                conn.close()
-                log.info('[jeeseek.startup] 已建 system 账号 (admin, invite_quota=0)')
+                log.info('[jeeseek.startup] system 账号 INSERT 执行完毕')
             except Exception as e:
-                log.warning(f'[jeeseek.startup] 建 system 账号失败: {e}')
-        # 重读 system 账号
+                log.error(f'[jeeseek.startup] system 账号 INSERT 失败: {e!r}')
+                import traceback
+                log.error(f'[jeeseek.startup] INSERT traceback: {traceback.format_exc()}')
+                conn.rollback()
+            finally:
+                conn.close()
+        else:
+            log.info(f'[jeeseek.startup] system 账号已存在 (id={system_user["id"]})')
+
+        # 2) 重读 system 账号, 建 LongWay6124
         system_user = auth.get_user_by_username('system')
-        if system_user:
+        if not system_user:
+            log.error('[jeeseek.startup] 重读 system 账号后仍为 None — 无法建 LongWay6124')
+        else:
+            log.info(f'[jeeseek.startup] system 账号 id={system_user["id"]}, 调用 create_invite_code')
             try:
                 code = auth.create_invite_code(
                     created_by=system_user['id'],
                     code_value='LongWay6124',
                     max_uses=999,
-                    note='花总指定长期邀请码',
+                    note='long way 6124',
                 )
                 if code:
                     log.info(f'[jeeseek.startup] 自动建码 LongWay6124 成功 (uid={system_user["id"]})')
                 else:
-                    log.info(f'[jeeseek.startup] LongWay6124 已存在，跳过')
+                    log.info('[jeeseek.startup] LongWay6124 已存在 (create_invite_code 返回 None = UNIQUE 冲突被吞)')
             except Exception as e:
-                log.warning(f'[jeeseek.startup] LongWay6124 创建失败: {e}')
+                log.error(f'[jeeseek.startup] LongWay6124 创建失败: {e!r}')
+                import traceback
+                log.error(f'[jeeseek.startup] create_invite_code traceback: {traceback.format_exc()}')
     except Exception as e:
-        log.warning(f'[jeeseek.startup] 自动建码逻辑失败（不影响 server 启动）: {e}')
+        log.error(f'[jeeseek.startup] 自动建码总逻辑失败: {e!r}')
+        import traceback
+        log.error(f'[jeeseek.startup] traceback: {traceback.format_exc()}')
 
     log.info('[jeeseek.startup] <<< on_startup 即将创建 fetch_loop task')
     try:
@@ -1161,8 +1174,28 @@ STATIC_DIR = Path(__file__).parent / 'static'
 STATIC_DIR.mkdir(exist_ok=True)
 app.mount('/static', StaticFiles(directory=str(STATIC_DIR)), name='static')
 
+
+def _is_logged_in(request: Request) -> bool:
+    """检查请求是否带有效 token (不抛异常)"""
+    try:
+        token = request.cookies.get(auth.COOKIE_NAME)
+        if not token:
+            return False
+        # verify_token 返回 jti dict 或抛错
+        data = auth.verify_token(token)
+        return bool(data)
+    except Exception:
+        return False
+
+
 @app.get('/')
-async def index():
+async def index(request: Request):
+    # 未登录 → 返 login.html；已登录 → 返 index.html
+    if not _is_logged_in(request):
+        login_path = STATIC_DIR / 'login.html'
+        if login_path.exists():
+            return HTMLResponse(login_path.read_text(encoding='utf-8'), headers={'Content-Type': 'text/html; charset=utf-8'})
+        return HTMLResponse('<h1>请先登录</h1>')
     html_path = STATIC_DIR / 'index.html'
     if html_path.exists():
         return HTMLResponse(html_path.read_text(encoding='utf-8'), headers={'Content-Type': 'text/html; charset=utf-8'})
@@ -1594,13 +1627,7 @@ async def api_login(req: LoginReq, response: Response):
     except Exception as e:
         tb = traceback.format_exc()
         log.error(f"[auth.login] get_user_by_username FAILED: {e!r}\n{tb}")
-        return JSONResponse({
-            "ok": False,
-            "error": "login_diag_get_user_failed",
-            "exception": str(e),
-            "exception_type": type(e).__name__,
-            "traceback": tb,
-        }, status_code=500)
+        raise HTTPException(500, "登录服务暂不可用")
     if not user or not auth.verify_password(req.password, user["password_hash"]):
         raise HTTPException(401, "用户名或密码错误")
     if user["status"] != "active":
@@ -1610,13 +1637,7 @@ async def api_login(req: LoginReq, response: Response):
     except Exception as e:
         tb = traceback.format_exc()
         log.error(f"[auth.login] update_last_login FAILED: {e!r}\n{tb}")
-        return JSONResponse({
-            "ok": False,
-            "error": "login_diag_update_failed",
-            "exception": str(e),
-            "exception_type": type(e).__name__,
-            "traceback": tb,
-        }, status_code=500)
+        # 登录成功但更新 last_login 失败 — 仍放行，不阻用户
     token = auth.create_token(user["id"], user["username"], user["role"])
     auth.set_auth_cookie(response, token)
     log.info(f"[auth] 登录: uid={user['id']} username={user['username']}")
