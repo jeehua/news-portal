@@ -1588,12 +1588,35 @@ async def api_register(req: RegisterReq, response: Response):
 
 @app.post("/api/auth/login")
 async def api_login(req: LoginReq, response: Response):
-    user = auth.get_user_by_username(req.username)
+    import traceback
+    try:
+        user = auth.get_user_by_username(req.username)
+    except Exception as e:
+        tb = traceback.format_exc()
+        log.error(f"[auth.login] get_user_by_username FAILED: {e!r}\n{tb}")
+        return JSONResponse({
+            "ok": False,
+            "error": "login_diag_get_user_failed",
+            "exception": str(e),
+            "exception_type": type(e).__name__,
+            "traceback": tb,
+        }, status_code=500)
     if not user or not auth.verify_password(req.password, user["password_hash"]):
         raise HTTPException(401, "用户名或密码错误")
     if user["status"] != "active":
         raise HTTPException(403, f"账号已{user['status']}")
-    auth.update_last_login(user["id"])
+    try:
+        auth.update_last_login(user["id"])
+    except Exception as e:
+        tb = traceback.format_exc()
+        log.error(f"[auth.login] update_last_login FAILED: {e!r}\n{tb}")
+        return JSONResponse({
+            "ok": False,
+            "error": "login_diag_update_failed",
+            "exception": str(e),
+            "exception_type": type(e).__name__,
+            "traceback": tb,
+        }, status_code=500)
     token = auth.create_token(user["id"], user["username"], user["role"])
     auth.set_auth_cookie(response, token)
     log.info(f"[auth] 登录: uid={user['id']} username={user['username']}")
