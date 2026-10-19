@@ -440,6 +440,75 @@ def list_users_i_invited(user_id: int) -> list:
         conn.close()
 
 
+# ────────────── Admin: 全员管理 ──────────────
+def list_all_users() -> list:
+    """列出所有真实用户（排除 system 账号）。admin 用。"""
+    conn = connect()
+    cur = conn.cursor()
+    try:
+        if USE_POSTGRES:
+            cur.execute(
+                """SELECT id, username, email, display_name, role, invite_quota,
+                          invited_by, created_at, last_login_at, status
+                   FROM users
+                   WHERE username != 'system'
+                   ORDER BY created_at DESC""",
+            )
+        else:
+            cur.execute(
+                """SELECT id, username, email, display_name, role, invite_quota,
+                          invited_by, created_at, last_login_at, status
+                   FROM users
+                   WHERE username != 'system'
+                   ORDER BY created_at DESC"""
+            )
+        rows = cur.fetchall()
+        return [
+            {
+                "id": r[0],
+                "username": r[1],
+                "email": r[2],
+                "display_name": r[3],
+                "role": r[4],
+                "invite_quota": r[5],
+                "invited_by": r[6],
+                "created_at": r[7],
+                "last_login_at": r[8],
+                "status": r[9],
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+def set_user_status(user_id: int, status: str) -> bool:
+    """改用户状态：'active' / 'disabled'。同时吊销该用户所有 session。"""
+    conn = connect()
+    cur = conn.cursor()
+    try:
+        if USE_POSTGRES:
+            cur.execute("UPDATE users SET status=%s WHERE id=%s", (status, user_id))
+        else:
+            cur.execute("UPDATE users SET status=? WHERE id=?", (status, user_id))
+        affected = cur.rowcount
+        # 吊销所有未吊销的 session
+        if USE_POSTGRES:
+            cur.execute(
+                "UPDATE user_sessions SET revoked=1 WHERE user_id=%s AND revoked=0",
+                (user_id,),
+            )
+        else:
+            cur.execute(
+                "UPDATE user_sessions SET revoked=1 WHERE user_id=? AND revoked=0",
+                (user_id,),
+            )
+        conn.commit()
+        return affected > 0
+    finally:
+        conn.close()
+
+
 # ────────────── FastAPI 依赖 ──────────────
 async def get_current_user(request: Request) -> Optional[dict]:
     token = request.cookies.get(COOKIE_NAME)

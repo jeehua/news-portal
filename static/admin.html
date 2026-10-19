@@ -516,5 +516,123 @@ if (document.readyState === 'loading') {
 }
 </script>
 
+<!-- ═══ v5.6: 全员用户管理面板（仅 admin 可见）═══ -->
+<div class="panel" id="admin-users-panel" style="margin-top: 20px; display:none;">
+  <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+    <span>👥 全员用户管理</span>
+    <span id="admin-users-badge" style="font-size:13px;color:#64748b;font-weight:normal;"></span>
+  </h2>
+
+  <div class="cards" style="margin-bottom:16px;">
+    <div class="card"><div class="label">总用户</div><div class="value" id="au-total">-</div></div>
+    <div class="card green"><div class="label">正常</div><div class="value" id="au-active">-</div></div>
+    <div class="card amber"><div class="label">已禁用</div><div class="value" id="au-disabled">-</div></div>
+  </div>
+
+  <div style="max-height:420px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;">
+    <table id="au-table">
+      <thead><tr>
+        <th>ID</th><th>用户名</th><th>昵称</th><th>角色</th><th>状态</th>
+        <th>注册时间</th><th>最后登录</th><th>操作</th>
+      </tr></thead>
+      <tbody id="au-tbody">
+        <tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px;">加载中…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// 全员用户管理
+async function loadAdminUsers() {
+  // 先看当前用户是不是 admin
+  let me = null;
+  try {
+    const r = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
+    const d = await r.json();
+    if (d.ok && d.authenticated) me = d.user;
+  } catch (e) { return; }
+  if (!me || me.role !== 'admin') return;  // 非 admin 不显示
+
+  document.getElementById('admin-users-panel').style.display = '';
+
+  try {
+    const r = await fetch('/api/admin/users', { credentials: 'include' });
+    const d = await r.json();
+    if (!d.ok) return;
+    const users = d.users || [];
+    const active = users.filter(u => u.status === 'active').length;
+    const disabled = users.length - active;
+    document.getElementById('au-total').textContent = users.length;
+    document.getElementById('au-active').textContent = active;
+    document.getElementById('au-disabled').textContent = disabled;
+    document.getElementById('admin-users-badge').textContent = '共 ' + users.length + ' 人';
+
+    const fmt = (ts) => {
+      if (!ts) return '—';
+      const dt = new Date(ts * 1000);
+      return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0')
+        + ' ' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+    };
+
+    document.getElementById('au-tbody').innerHTML = users.map(u => {
+      const isMe = me.id === u.id;
+      const roleTag = u.role === 'admin'
+        ? '<span class="tag" style="background:#fee2e2;color:#b91c1c;">admin</span>'
+        : '<span class="tag">user</span>';
+      const statusTag = u.status === 'active'
+        ? '<span style="color:#15803d;font-weight:600;">正常</span>'
+        : '<span style="color:#b91c1c;font-weight:600;">已禁用</span>';
+      let action = '—';
+      if (!isMe && u.username !== 'system') {
+        if (u.status === 'active') {
+          action = '<button onclick="banUser(' + u.id + ',\'' + u.username + '\')" style="background:#fee2e2;color:#b91c1c;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;">🚫 踢出</button>';
+        } else {
+          action = '<button onclick="unbanUser(' + u.id + ')" style="background:#dcfce7;color:#15803d;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;">✅ 恢复</button>';
+        }
+      } else if (isMe) {
+        action = '<span style="color:#94a3b8;font-size:12px;">（我自己）</span>';
+      }
+      return '<tr>' +
+        '<td>#' + u.id + '</td>' +
+        '<td style="font-weight:600;">' + u.username + '</td>' +
+        '<td style="color:#64748b;">' + (u.display_name || '—') + '</td>' +
+        '<td>' + roleTag + '</td>' +
+        '<td>' + statusTag + '</td>' +
+        '<td style="color:#64748b;font-size:12px;">' + fmt(u.created_at) + '</td>' +
+        '<td style="color:#64748b;font-size:12px;">' + fmt(u.last_login_at) + '</td>' +
+        '<td>' + action + '</td>' +
+      '</tr>';
+    }).join('');
+  } catch (e) {
+    console.error('loadAdminUsers failed:', e);
+  }
+}
+
+async function banUser(id, username) {
+  if (!confirm('确定要踢出用户 "' + username + '"（#' + id + '）吗？\n\n他将立即被登出，且无法再登录。')) return;
+  const r = await fetch('/api/admin/users/' + id + '/ban', {
+    method: 'POST',
+    credentials: 'include',
+  });
+  const d = await r.json();
+  if (!d.ok) { alert('操作失败: ' + (d.detail || d.error || r.status)); return; }
+  loadAdminUsers();
+}
+
+async function unbanUser(id) {
+  const r = await fetch('/api/admin/users/' + id + '/unban', {
+    method: 'POST',
+    credentials: 'include',
+  });
+  const d = await r.json();
+  if (!d.ok) { alert('操作失败: ' + (d.detail || d.error || r.status)); return; }
+  loadAdminUsers();
+}
+
+// 延迟加载 admin 用户表（等 /api/auth/me 完成后）
+setTimeout(loadAdminUsers, 500);
+</script>
+
 </body>
 </html>

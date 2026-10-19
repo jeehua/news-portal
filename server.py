@@ -1760,6 +1760,56 @@ async def api_invite_my_invites(request: Request):
     return {"ok": True, "invited": invited, "remaining_quota": user["invite_quota"]}
 
 
+# ════════════════════════════════════════════════════════
+# Admin: 全员用户管理（仅 admin）
+# ════════════════════════════════════════════════════════
+
+@app.get("/api/admin/users")
+async def api_admin_list_users(request: Request):
+    """列出所有注册用户（admin only）。"""
+    me = request.state.user
+    if me.get("role") != "admin":
+        raise HTTPException(403, "需要管理员权限")
+    users = auth.list_all_users()
+    return {"ok": True, "users": users, "total": len(users)}
+
+
+@app.post("/api/admin/users/{user_id}/ban")
+async def api_admin_ban_user(user_id: int, request: Request):
+    """禁用用户（踢出）：status='disabled'，吊销所有 session。"""
+    me = request.state.user
+    if me.get("role") != "admin":
+        raise HTTPException(403, "需要管理员权限")
+    if user_id == me["id"]:
+        raise HTTPException(400, "不能禁用自己")
+    target = auth.get_user_by_id(user_id)
+    if not target:
+        raise HTTPException(404, "用户不存在")
+    if target.get("username") == "system":
+        raise HTTPException(400, "不能禁用 system 账号")
+    ok = auth.set_user_status(user_id, "disabled")
+    if not ok:
+        raise HTTPException(500, "操作失败")
+    log.info(f"[admin] uid={me['id']} 禁用用户 uid={user_id} ({target['username']})")
+    return {"ok": True, "user_id": user_id, "status": "disabled"}
+
+
+@app.post("/api/admin/users/{user_id}/unban")
+async def api_admin_unban_user(user_id: int, request: Request):
+    """恢复用户：status='active'。"""
+    me = request.state.user
+    if me.get("role") != "admin":
+        raise HTTPException(403, "需要管理员权限")
+    target = auth.get_user_by_id(user_id)
+    if not target:
+        raise HTTPException(404, "用户不存在")
+    ok = auth.set_user_status(user_id, "active")
+    if not ok:
+        raise HTTPException(500, "操作失败")
+    log.info(f"[admin] uid={me['id']} 恢复用户 uid={user_id} ({target['username']})")
+    return {"ok": True, "user_id": user_id, "status": "active"}
+
+
 if __name__ == '__main__':
     import uvicorn
     uvicorn.run(app, host=LISTEN_HOST, port=LISTEN_PORT, log_level='info')
