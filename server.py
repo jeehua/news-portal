@@ -837,8 +837,8 @@ async def fetch_loop():
 app = FastAPI(title='知几察微 v3', version='3.0')
 
 # ============ 访问统计 / 管理后台 ============
-ADMIN_USER = os.getenv('ADMIN_USER', 'admin')
-ADMIN_PASS = os.getenv('ADMIN_PASS', 'zhiji2026')  # 花总自己用,简单点
+ADMIN_USER = os.getenv('ADMIN_USER', 'hua')
+ADMIN_PASS = os.getenv('ADMIN_PASS', '123456')  # 花总自己用,简单点
 ADMIN_TOKEN = os.getenv('ADMIN_TOKEN', 'zhiji-admin-token-2026')  # 简化版鉴权 token
 
 STATS_DIR = Path(os.getenv('STATS_DIR', '/app/data'))
