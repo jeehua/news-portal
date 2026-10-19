@@ -146,14 +146,15 @@ def get_user_by_id(user_id: int) -> Optional[dict]:
     conn = connect()
     cur = conn.cursor()
     try:
+        # 注意：列顺序必须与 _row_to_user 对齐（含 password_hash 占位，不返回给上层）
         if USE_POSTGRES:
             cur.execute(
-                "SELECT id, username, email, display_name, role, invite_quota, invited_by, created_at, last_login_at, status FROM users WHERE id=%s",
+                "SELECT id, username, email, password_hash, display_name, role, invite_quota, invited_by, created_at, last_login_at, status FROM users WHERE id=%s",
                 (user_id,),
             )
         else:
             cur.execute(
-                "SELECT id, username, email, display_name, role, invite_quota, invited_by, created_at, last_login_at, status FROM users WHERE id=?",
+                "SELECT id, username, email, password_hash, display_name, role, invite_quota, invited_by, created_at, last_login_at, status FROM users WHERE id=?",
                 (user_id,),
             )
         row = cur.fetchone()

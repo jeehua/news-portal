@@ -917,16 +917,10 @@ AUTH_PUBLIC_PATHS = (
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
-    """邀请制鉴权：除白名单外，所有 /api/* 必须登录"""
+    """邀请制鉴权：除白名单外，所有 /api/* 必须登录。
+    白名单路径也会尝试解析 token 并挂 state.user（供 /api/auth/me 等使用），但不强制。"""
     path = request.url.path
-    # 白名单内直接放行
-    for pub in AUTH_PUBLIC_PATHS:
-        if path == pub or path.startswith(pub):
-            return await call_next(request)
-    # 只锁 /api/*（前端页面走 index.html 静态分发 + JS 二次校验）
-    if not path.startswith("/api/"):
-        return await call_next(request)
-    # 检查 cookie
+    # 先尝试解析 token（无论是否白名单）
     token = request.cookies.get(auth.COOKIE_NAME)
     user = None
     if token:
@@ -936,9 +930,20 @@ async def auth_middleware(request: Request, call_next):
             if jti and auth.is_session_valid(jti):
                 uid = int(payload.get("sub", 0))
                 if uid:
-                    user = auth.get_user_by_id(uid)
-                    if user and user.get("status") != "active":
-                        user = None
+                    u = auth.get_user_by_id(uid)
+                    if u and u.get("status") == "active":
+                        user = u
+    # 白名单内直接放行（即使没登录也能访问）
+    for pub in AUTH_PUBLIC_PATHS:
+        if path == pub or path.startswith(pub):
+            if user:
+                request.state.user = user
+            return await call_next(request)
+    # 只锁 /api/*（前端页面走 index.html 静态分发 + JS 二次校验）
+    if not path.startswith("/api/"):
+        if user:
+            request.state.user = user
+        return await call_next(request)
     if not user:
         return JSONResponse(
             status_code=401,
