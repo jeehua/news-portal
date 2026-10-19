@@ -913,6 +913,7 @@ AUTH_PUBLIC_PATHS = (
     "/static/",         # 静态资源：login.html / register.html / logo 等
     "/favicon.ico",
     "/robots.txt",
+    "/api/admin/login", # 老统计面板登录（独立账号密码）
 )
 
 @app.middleware("http")
