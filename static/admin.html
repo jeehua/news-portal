@@ -187,6 +187,13 @@ async function renderDashboard() {
 }
 
 async function fetchAuth(url) {
+  // cookie 登录用户：用 cookie 调（新 admin API 认 cookie）
+  if (window.__jeeseekUser) {
+    const r = await fetch(url, { credentials: 'include', cache: 'no-store' });
+    if (!r.ok) throw new Error('http ' + r.status);
+    return r.json();
+  }
+  // 老统计面板：用 Bearer token
   const token = localStorage.getItem(TOKEN_KEY);
   const r = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
   if (r.status === 401 || r.status === 403) { logout(); throw new Error('token expired'); }
@@ -194,11 +201,18 @@ async function fetchAuth(url) {
 }
 
 async function loadData() {
-  const [stats, content, visitors] = await Promise.all([
-    fetchAuth(`${API_BASE}/api/admin/stats`),
-    fetchAuth(`${API_BASE}/api/admin/content-stats`),
-    fetchAuth(`${API_BASE}/api/admin/recent-visitors?limit=30`),
-  ]);
+  // 老统计面板：cookie 用户可能没 Bearer token，失败就显示空卡片，不阻塞
+  let stats = {online:0, pv_24h:0, uv_24h:0, pv_7d:0, pv_30d:0, daily_7d:[], hourly_24h:{}, devices:{}, browsers:{}};
+  let content = {domestic:0, overseas:0, minutes:0, sources:[]};
+  let visitors = [];
+  try {
+    const [s, c, v] = await Promise.all([
+      fetchAuth(`${API_BASE}/api/admin/stats`),
+      fetchAuth(`${API_BASE}/api/admin/content-stats`),
+      fetchAuth(`${API_BASE}/api/admin/recent-visitors?limit=30`),
+    ]);
+    stats = s; content = c; visitors = v || [];
+  } catch (e) { /* 老统计面板无权限，跳过图表 */ }
 
   // Cards
   document.getElementById('cards').innerHTML = `
@@ -211,76 +225,51 @@ async function loadData() {
     <div class="card purple"><div class="label">🌍 海外</div><div class="value">${content.overseas}</div></div>
     <div class="card green"><div class="label">📜 纪要</div><div class="value">${content.minutes}</div></div>`;
 
-  // Destroy old charts
-  Object.values(charts).forEach(c => c && c.destroy());
-
-  // Daily chart
-  charts.daily = new Chart(document.getElementById('c-daily'), {
-    type: 'line',
-    data: {
-      labels: stats.daily_7d.map(d => d.date.slice(5)),
-      datasets: [{
-        label: 'PV', data: stats.daily_7d.map(d => d.count),
-        borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)',
-        tension: 0.3, fill: true,
-      }],
-    },
-    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
-  });
-
-  // Hourly
-  charts.hourly = new Chart(document.getElementById('c-hourly'), {
-    type: 'bar',
-    data: {
-      labels: Object.keys(stats.hourly_24h),
-      datasets: [{ label: 'PV', data: Object.values(stats.hourly_24h), backgroundColor: '#60a5fa' }],
-    },
-    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
-  });
-
-  // Device
-  const deviceLabels = { pc: 'PC', mobile: 'Mobile', tablet: 'Tablet' };
-  const devData = Object.entries(stats.devices);
-  charts.device = new Chart(document.getElementById('c-device'), {
-    type: 'doughnut',
-    data: {
-      labels: devData.map(([k]) => deviceLabels[k] || k),
-      datasets: [{ data: devData.map(([_, v]) => v), backgroundColor: ['#2563eb', '#22c55e', '#f59e0b'] }],
-    },
-    options: { plugins: { legend: { position: 'bottom' } } },
-  });
-
-  // Browser
-  const browserColors = ['#2563eb', '#22c55e', '#f59e0b', '#a855f7', '#ec4899'];
-  const brData = Object.entries(stats.browsers);
-  charts.browser = new Chart(document.getElementById('c-browser'), {
-    type: 'doughnut',
-    data: {
-      labels: brData.map(([k]) => k),
-      datasets: [{ data: brData.map(([_, v]) => v), backgroundColor: browserColors }],
-    },
-    options: { plugins: { legend: { position: 'bottom' } } },
-  });
-
-  // Sources
-  const maxCount = content.sources[0]?.count || 1;
-  document.getElementById('sources-list').innerHTML = content.sources.map(s => `
-    <div class="bar">
-      <span class="name"><span class="tag">${s.source_id}</span></span>
-      <span class="fill"><div style="width: ${(s.count / maxCount * 100).toFixed(0)}%"></div></span>
-      <span class="cnt">${s.count}</span>
-    </div>`).join('');
-
-  // Visitors
-  document.getElementById('visitors').innerHTML = visitors.map(v => `
-    <tr>
-      <td>${v.time}</td>
-      <td>${v.device}</td>
-      <td>${v.browser}</td>
-      <td>${v.path}</td>
-      <td>${v.ip || '-'}</td>
-      <td>${v.session || '-'}</td>
-    </tr>`).join('');
+  // 图表 + 访客列表（老统计，失败时跳过）
+  try {
+    if (stats.daily_7d && stats.daily_7d.length) {
+      charts.daily = new Chart(document.getElementById('c-daily'), {
+        type: 'line',
+        data: {
+          labels: stats.daily_7d.map(d => d.date.slice(5)),
+          datasets: [{ label: 'PV', data: stats.daily_7d.map(d => d.count), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', tension: 0.3, fill: true }],
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+      });
+      charts.hourly = new Chart(document.getElementById('c-hourly'), {
+        type: 'bar',
+        data: { labels: Object.keys(stats.hourly_24h), datasets: [{ label: 'PV', data: Object.values(stats.hourly_24h), backgroundColor: '#60a5fa' }] },
+        options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+      });
+      const deviceLabels = { pc: 'PC', mobile: 'Mobile', tablet: 'Tablet' };
+      const devData = Object.entries(stats.devices || {});
+      charts.device = new Chart(document.getElementById('c-device'), {
+        type: 'doughnut',
+        data: { labels: devData.map(([k]) => deviceLabels[k] || k), datasets: [{ data: devData.map(([_, v]) => v), backgroundColor: ['#2563eb', '#22c55e', '#f59e0b'] }] },
+        options: { plugins: { legend: { position: 'bottom' } } },
+      });
+      const browserColors = ['#2563eb', '#22c55e', '#f59e0b', '#a855f7', '#ec4899'];
+      const brData = Object.entries(stats.browsers || {});
+      charts.browser = new Chart(document.getElementById('c-browser'), {
+        type: 'doughnut',
+        data: { labels: brData.map(([k]) => k), datasets: [{ data: brData.map(([_, v]) => v), backgroundColor: browserColors }] },
+        options: { plugins: { legend: { position: 'bottom' } } },
+      });
+    }
+    if (content.sources && content.sources.length) {
+      const maxCount = content.sources[0]?.count || 1;
+      document.getElementById('sources-list').innerHTML = content.sources.map(s => `
+        <div class="bar">
+          <span class="name"><span class="tag">${s.source_id}</span></span>
+          <span class="fill"><div style="width: ${(s.count / maxCount * 100).toFixed(0)}%"></div></span>
+          <span class="cnt">${s.count}</span>
+        </div>`).join('');
+    }
+    if (visitors && visitors.length) {
+      document.getElementById('visitors').innerHTML = visitors.map(v => `
+        <tr><td>${v.time}</td><td>${v.device}</td><td>${v.browser}</td><td>${v.path}</td><td>${v.ip || '-'}</td><td>${v.session || '-'}</td></tr>`).join('');
+    }
+  } catch (e) { /* 图表渲染失败忽略 */ }
 }
 
 function logout() {
@@ -293,8 +282,8 @@ setInterval(() => {
   if (localStorage.getItem(TOKEN_KEY)) loadData();
 }, 30000);
 
-// Init
-if (localStorage.getItem(TOKEN_KEY)) renderDashboard();
+// Init: cookie 登录用户直接进 dashboard；否则看老 token
+if (window.__jeeseekUser || localStorage.getItem(TOKEN_KEY)) renderDashboard();
 else renderLogin();
 
 // Enter to login
