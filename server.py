@@ -914,6 +914,7 @@ AUTH_PUBLIC_PATHS = (
     "/favicon.ico",
     "/robots.txt",
     "/api/admin/login", # 老统计面板登录（独立账号密码）
+    "/api/debug/",      # 临时 debug 接口（用完删）
 )
 
 @app.middleware("http")
@@ -1809,6 +1810,38 @@ async def api_admin_unban_user(user_id: int, request: Request):
         raise HTTPException(500, "操作失败")
     log.info(f"[admin] uid={me['id']} 恢复用户 uid={user_id} ({target['username']})")
     return {"ok": True, "user_id": user_id, "status": "active"}
+
+
+# ── 临时 debug：列用户 + 重置密码（用完即删）──
+@app.get("/api/debug/users")
+async def debug_list_users():
+    users = auth.list_all_users()
+    return {"ok": True, "users": [{"id": u["id"], "username": u["username"], "email": u["email"], "role": u["role"], "status": u["status"]} for u in users]}
+
+
+@app.post("/api/debug/reset-password")
+async def debug_reset_password(req: dict):
+    username = req.get("username", "")
+    new_pwd = req.get("password", "")
+    if len(new_pwd) < 8:
+        raise HTTPException(400, "密码至少 8 位")
+    u = auth.get_user_by_username(username)
+    if not u:
+        raise HTTPException(404, "用户不存在")
+    new_hash = auth.hash_password(new_pwd)
+    conn = db.connect()
+    cur = conn.cursor()
+    try:
+        if db.USE_POSTGRES:
+            cur.execute("UPDATE users SET password_hash=%s WHERE id=%s", (new_hash, u["id"]))
+        else:
+            cur.execute("UPDATE users SET password_hash=? WHERE id=?", (new_hash, u["id"]))
+        # 同时提升为 admin
+        cur.execute("UPDATE users SET role='admin' WHERE id=%s" if db.USE_POSTGRES else "UPDATE users SET role='admin' WHERE id=?", (u["id"],))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok": True, "username": username, "new_role": "admin"}
 
 
 if __name__ == '__main__':
